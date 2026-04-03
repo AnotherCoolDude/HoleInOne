@@ -12,6 +12,8 @@ struct RoundView: View {
     // Brief "saved" feedback
     @State private var pinSaved = false
     @State private var teeSaved = false
+    // Contextual hint banner — user can dismiss per-hole
+    @State private var hintDismissedForHole: Set<Int> = []
 
     init(round: Round) {
         _viewModel = State(wrappedValue: RoundViewModel(round: round))
@@ -23,6 +25,11 @@ struct RoundView: View {
         VStack(spacing: 0) {
             holeHeader(hole: hole)
                 .padding()
+
+            // Contextual GPS hint — shown between header and map
+            gpsHintBanner
+                .padding(.horizontal)
+                .padding(.bottom, gpsHintVisible ? 8 : 0)
 
             HoleMapView(hole: hole, userLocation: viewModel.userLocation)
                 .ignoresSafeArea(edges: .horizontal)
@@ -74,6 +81,63 @@ struct RoundView: View {
         } message: {
             Text("This will overwrite the previously saved tee location.")
         }
+    }
+
+    // MARK: - GPS hint banner
+
+    private var gpsHintVisible: Bool {
+        let holeNumber = viewModel.round.currentHole.number
+        guard !hintDismissedForHole.contains(holeNumber) else { return false }
+        return viewModel.gpsPrompt != .none
+    }
+
+    @ViewBuilder
+    private var gpsHintBanner: some View {
+        let holeNumber = viewModel.round.currentHole.number
+        if !hintDismissedForHole.contains(holeNumber) {
+            switch viewModel.gpsPrompt {
+            case .markTee:
+                hintRow(
+                    icon: "figure.stand",
+                    color: .blue,
+                    message: "Stand on the tee box and tap Mark Tee to record this hole.",
+                    holeNumber: holeNumber
+                )
+            case .markPin:
+                hintRow(
+                    icon: "flag.fill",
+                    color: .orange,
+                    message: "You're near the green — stand at the pin and tap Mark Pin.",
+                    holeNumber: holeNumber
+                )
+            case .none:
+                EmptyView()
+            }
+        }
+    }
+
+    private func hintRow(icon: String, color: Color, message: String, holeNumber: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .frame(width: 20)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    hintDismissedForHole.insert(holeNumber)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - Header
@@ -234,11 +298,16 @@ struct RoundView: View {
     private func savePin() {
         viewModel.markPin()
         flashSaved(pin: true)
+        // Hint fulfilled — hide it
+        hintDismissedForHole.insert(viewModel.round.currentHole.number)
     }
 
     private func saveTee() {
         viewModel.markTee()
         flashSaved(pin: false)
+        // Re-evaluate: tee saved, pin may still be needed — remove dismissal so
+        // the pin hint can appear when they approach the green
+        hintDismissedForHole.remove(viewModel.round.currentHole.number)
     }
 
     private func flashSaved(pin: Bool) {

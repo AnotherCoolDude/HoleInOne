@@ -70,6 +70,16 @@ final class LearnedGPSStore {
         try? modelContext.save()
     }
 
+    // MARK: - Progress
+
+    /// How many holes have at least a pin recorded for this course.
+    func mappedPinCount(courseId: String) -> Int {
+        let descriptor = FetchDescriptor<LearnedHoleGPS>(
+            predicate: #Predicate { $0.courseId == courseId && $0.pinLatitude != nil }
+        )
+        return (try? modelContext.fetchCount(descriptor)) ?? 0
+    }
+
     /// Wipes all learned GPS for a course — useful if the club redesigns their layout.
     func clearAll(courseId: String) {
         let descriptor = FetchDescriptor<LearnedHoleGPS>(

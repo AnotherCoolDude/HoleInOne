@@ -15,7 +15,10 @@ struct RoundSetupView: View {
 
     @State private var selection: Round.HoleSelection = .all18
     @State private var isFavourite = false
+    @State private var mappedPins: Int = 0
     @Environment(\.modelContext) private var modelContext
+
+    private var totalHoles: Int { course?.holes.count ?? 18 }
 
     private var displayName: String    { course?.name    ?? preloadName    }
     private var displayCity: String    { course?.city    ?? preloadCity    }
@@ -38,6 +41,12 @@ struct RoundSetupView: View {
             // Status banner — transitions from blue "fetching" → GPS badge
             statusBanner
                 .padding(.horizontal)
+
+            // Player-recorded GPS progress (always shown once course loaded)
+            if !isLoadingCourse {
+                playerGPSBadge
+                    .padding(.horizontal)
+            }
 
             // Hole picker
             VStack(alignment: .leading, spacing: 12) {
@@ -83,6 +92,7 @@ struct RoundSetupView: View {
         }
         .task {
             isFavourite = SwingHistoryStore(modelContext: modelContext).isFavourite(courseId: courseId)
+            mappedPins  = LearnedGPSStore(modelContext: modelContext).mappedPinCount(courseId: courseId)
             await loadCourse()
         }
     }
@@ -177,6 +187,40 @@ struct RoundSetupView: View {
             city: displayCity,
             country: displayCountry
         )
+    }
+
+    // MARK: - Player GPS badge
+
+    @ViewBuilder
+    private var playerGPSBadge: some View {
+        if mappedPins == 0 {
+            bannerRow(color: .indigo) {
+                Image(systemName: "figure.walk").foregroundStyle(.indigo)
+            } title: {
+                Text("No holes mapped by you yet")
+                    .font(.caption.bold()).foregroundStyle(.indigo)
+            } detail: {
+                Text("Walk the course and tap \"Mark Pin\" on each hole to build your own GPS data.")
+            }
+        } else if mappedPins < totalHoles {
+            bannerRow(color: .indigo) {
+                Image(systemName: "location.fill.viewfinder").foregroundStyle(.indigo)
+            } title: {
+                Text("Your GPS: \(mappedPins)/\(totalHoles) holes mapped")
+                    .font(.caption.bold()).foregroundStyle(.indigo)
+            } detail: {
+                Text("Keep playing to map the remaining \(totalHoles - mappedPins) holes.")
+            }
+        } else {
+            bannerRow(color: .indigo) {
+                Image(systemName: "checkmark.seal.fill").foregroundStyle(.indigo)
+            } title: {
+                Text("Your GPS: all \(totalHoles) holes mapped")
+                    .font(.caption.bold()).foregroundStyle(.indigo)
+            } detail: {
+                Text("Full pin distances available from your own recorded data.")
+            }
+        }
     }
 
     // MARK: - GPS quality badge

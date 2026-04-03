@@ -82,6 +82,40 @@ final class RoundViewModel {
     func hasLearnedPin(holeNumber: Int) -> Bool { learnedPins[holeNumber] != nil }
     func hasLearnedTee(holeNumber: Int) -> Bool { learnedTees[holeNumber] != nil }
 
+    // MARK: - Contextual GPS prompts
+
+    enum GPSPrompt: Equatable {
+        case markTee       // no tee recorded, GPS available
+        case markPin       // no pin, player is close to green
+        case none          // both recorded, or no GPS
+    }
+
+    /// Distance threshold in metres below which we suggest marking the pin.
+    private static let nearGreenMetres: Double = 30
+
+    var gpsPrompt: GPSPrompt {
+        guard userLocation != nil else { return .none }
+        let hole = round.currentHole.number
+        let hasPin = hasLearnedPin(holeNumber: hole)
+        let hasTee = hasLearnedTee(holeNumber: hole)
+        if hasPin && hasTee { return .none }
+        if !hasPin {
+            // Close to where the pin placeholder sits → suggest marking pin
+            let distMetres = userLocation.flatMap { loc in
+                let pin = effectiveCurrentHole.pinCoordinate.clLocation
+                return loc.distance(from: pin) as Double?
+            } ?? Double.infinity
+            if distMetres < Self.nearGreenMetres { return .markPin }
+        }
+        if !hasTee { return .markTee }
+        return .none
+    }
+
+    /// How many holes in this round's course already have a pin recorded.
+    func mappedPinCount() -> Int {
+        learnedGPSStore?.mappedPinCount(courseId: round.course.id) ?? 0
+    }
+
     /// Records the player's current location as the pin for the current hole.
     func markPin() {
         guard let loc = userLocation, let store = learnedGPSStore else { return }
