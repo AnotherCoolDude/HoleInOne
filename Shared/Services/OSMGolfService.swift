@@ -72,21 +72,8 @@ struct OSMHoleData {
 
 // MARK: - Nearby course discovery
 
-/// A golf course found in OpenStreetMap near the user's location.
-/// Used to populate the "Nearby" section without requiring an API key or
-/// a match against the golfcourseapi.com database.
-struct NearbyOSMCourse: Identifiable, Hashable {
-    let id: String          // OSM element id, e.g. "way/123456"
-    let name: String
-    let coordinate: Coordinate
-    var distanceMeters: Double = 0
-
-    var distanceLabel: String {
-        distanceMeters < 1_000
-            ? String(format: "%.0f m", distanceMeters)
-            : String(format: "%.1f km", distanceMeters / 1_000)
-    }
-}
+// NearbyGolfCourse is defined in GooglePlacesService.swift and is the shared
+// type for nearby results regardless of data source (Google Places or OSM).
 
 // MARK: - Service
 
@@ -110,7 +97,7 @@ actor OSMGolfService {
         location: Coordinate,
         radiusKm: Double = 25,
         limit: Int = 10
-    ) async -> [NearbyOSMCourse] {
+    ) async -> [NearbyGolfCourse] {
         let radiusM = Int(radiusKm * 1_000)
         // Query ways, nodes and relations tagged leisure=golf_course within radius.
         // `out center` returns a single representative point for each element.
@@ -132,7 +119,7 @@ actor OSMGolfService {
 
         let userLoc = CLLocation(latitude: location.latitude, longitude: location.longitude)
 
-        var courses: [NearbyOSMCourse] = []
+        var courses: [NearbyGolfCourse] = []
         for element in elements {
             // Resolve centre coordinate (ways/relations expose a "center" sub-dict)
             let lat: Double
@@ -152,10 +139,10 @@ actor OSMGolfService {
 
             let osmType = element["type"] as? String ?? "node"
             let osmId   = element["id"]   as? Int    ?? 0
-            let id      = "\(osmType)/\(osmId)"
+            let id      = "osm-\(osmType)/\(osmId)"
 
             let courseLoc = CLLocation(latitude: lat, longitude: lon)
-            var course = NearbyOSMCourse(
+            var course = NearbyGolfCourse(
                 id: id,
                 name: name,
                 coordinate: Coordinate(latitude: lat, longitude: lon)

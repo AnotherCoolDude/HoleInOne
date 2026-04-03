@@ -1,23 +1,43 @@
+import CoreLocation
 import Foundation
 
 // MARK: - GooglePlacesService
 //
 // Fetches rich course metadata (website, location, photos) from the
-// Google Places API (New) using a Text Search + photo media request.
+// Google Places API (New) using Text Search, Nearby Search, and photo media requests.
 //
 // Requires GOOGLE_PLACES_KEY in Secrets.xcconfig (gitignored).
 // Get a key at: console.cloud.google.com → APIs → Places API (New)
 //
 // API docs: https://developers.google.com/maps/documentation/places/web-service/text-search
+//           https://developers.google.com/maps/documentation/places/web-service/nearby-search
 //
 // Pricing (as of 2025):
+//   Nearby Search — $0.032 / request
 //   Text Search   — $0.017 / request
 //   Photo (Basic) — $0.007 / photo session
-//   Both have a $200/month free tier (~11 000 text searches free).
+//   All have a shared $200/month free tier.
 //
 // We cache results for 30 days to minimise billing.
 
-// MARK: - Result model
+// MARK: - Nearby course model
+
+/// A golf course returned by Google Places Nearby Search (or OSM as fallback).
+/// Used to populate the "Nearby" section on the home screen.
+struct NearbyGolfCourse: Identifiable, Hashable {
+    let id: String           // Google Place ID ("ChIJ…") or OSM element id ("way/123456")
+    let name: String
+    let coordinate: Coordinate
+    var distanceMeters: Double = 0
+
+    var distanceLabel: String {
+        distanceMeters < 1_000
+            ? String(format: "%.0f m", distanceMeters)
+            : String(format: "%.1f km", distanceMeters / 1_000)
+    }
+}
+
+// MARK: - Text search result model
 
 struct GooglePlaceResult {
     let placeId:    String
@@ -74,7 +94,76 @@ actor GooglePlacesService {
         return result
     }
 
-    // MARK: - API fetch
+    // MARK: - Nearby Search
+
+    /// Returns up to `limit` golf courses within `radiusKm` of `location`,
+    /// sorted by distance. Results are NOT cached (caller should debounce).
+    /// Returns an empty array when the API key is not configured.
+    func nearbyGolfCourses(
+        location: Coordinate,
+        radiusKm: Double = 25,
+        limit: Int = 10
+    ) async -> [NearbyGolfCourse] {
+        guard isConfigured else { return [] }
+        guard let url = URL(string: "\(baseURL)/places:searchNearby") else { return [] }
+
+        let body: [String: Any] = [
+            "includedTypes":   ["golf_course"],
+            "maxResultCount":  20,          // fetch extra, trim after distance sort
+            "locationRestriction": [
+                "circle": [
+                    "center": ["latitude": location.latitude, "longitude": location.longitude],
+                    "radius": radiusKm * 1_000
+                ]
+            ]
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey,             forHTTPHeaderField: "X-Goog-Api-Key")
+        // Only id, name and location — cheapest Nearby Search field mask
+        request.setValue(
+            "places.id,places.displayName,places.location",
+            forHTTPHeaderField: "X-Goog-FieldMask"
+        )
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else { return [] }
+        request.httpBody = bodyData
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            return []
+        }
+        guard let json   = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let places = json["places"] as? [[String: Any]] else {
+            #if DEBUG
+            let preview = String(data: data, encoding: .utf8)?.prefix(300) ?? ""
+            print("[GooglePlaces] Nearby search failed: \(preview)")
+            #endif
+            return []
+        }
+
+        let userCL = CLLocation(latitude: location.latitude, longitude: location.longitude)
+
+        let courses: [NearbyGolfCourse] = places.compactMap { place in
+            guard let id          = place["id"] as? String,
+                  let displayName = (place["displayName"] as? [String: Any])?["text"] as? String,
+                  let loc         = place["location"] as? [String: Any],
+                  let lat         = loc["latitude"]  as? Double,
+                  let lon         = loc["longitude"] as? Double else { return nil }
+
+            let coord = Coordinate(latitude: lat, longitude: lon)
+            let dist  = userCL.distance(from: CLLocation(latitude: lat, longitude: lon))
+            return NearbyGolfCourse(id: id, name: displayName, coordinate: coord, distanceMeters: dist)
+        }
+
+        return courses
+            .sorted { $0.distanceMeters < $1.distanceMeters }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    // MARK: - API fetch (Text Search + Photos)
 
     private func fetchFromAPI(name: String, near coord: Coordinate) async -> GooglePlaceResult? {
         // Step 1: Text Search

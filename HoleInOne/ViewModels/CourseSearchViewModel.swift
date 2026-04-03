@@ -9,7 +9,7 @@ final class CourseSearchViewModel {
     var query: String = ""
     var searchResults: [CourseAPIResult] = []
     var browseResults: [CourseAPIResult] = []
-    var nearbyCourses: [NearbyOSMCourse] = []
+    var nearbyCourses: [NearbyGolfCourse] = []
     var isLoading: Bool = false
     var isLoadingMore: Bool = false
     var isLoadingNearby: Bool = false
@@ -75,11 +75,13 @@ final class CourseSearchViewModel {
 
     // MARK: - Nearby courses
 
-    /// Searches for up to 10 courses near `location`, using reverse geocoding
-    /// to narrow the API results to the local city (or country as fallback)
-    /// before sorting by distance and truncating.
-    /// Queries OpenStreetMap (via Overpass API) for golf courses within 25 km.
-    /// OSM has global coverage and works well in Germany and all of Europe.
+    /// Finds up to 10 golf courses near `location`.
+    ///
+    /// Source priority:
+    ///   1. Google Places Nearby Search — richest data, global, requires API key
+    ///   2. OpenStreetMap (Overpass) — free, worldwide, used when key is absent
+    ///
+    /// Results are skipped when the user hasn't moved more than 5 km since last fetch.
     func loadNearbyCourses(from location: CLLocation) async {
         // Skip if we already loaded for a point within 5 km of this one
         if let prev = nearbyLoadedFor, location.distance(from: prev) < 5_000 { return }
@@ -89,6 +91,18 @@ final class CourseSearchViewModel {
 
         let coord = Coordinate(latitude: location.coordinate.latitude,
                                longitude: location.coordinate.longitude)
+
+        // Try Google Places first (richer results, works worldwide)
+        if await GooglePlacesService.shared.isConfigured {
+            let results = await GooglePlacesService.shared.nearbyGolfCourses(location: coord)
+            if !results.isEmpty {
+                nearbyCourses   = results
+                nearbyLoadedFor = location
+                return
+            }
+        }
+
+        // Fallback: OpenStreetMap via Overpass API (no key required)
         nearbyCourses   = await OSMGolfService.shared.nearbyGolfCourses(location: coord)
         nearbyLoadedFor = location
     }

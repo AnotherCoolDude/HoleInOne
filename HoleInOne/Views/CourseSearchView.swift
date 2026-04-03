@@ -145,10 +145,10 @@ struct CourseSearchView: View {
         }
     }
 
-    private func nearbyCourseRow(_ course: NearbyOSMCourse) -> some View {
+    private func nearbyCourseRow(_ course: NearbyGolfCourse) -> some View {
         NavigationLink {
             RoundSetupView(
-                courseId: "osm-\(course.id)",
+                courseId: course.id,
                 preloadName: course.name,
                 preloadCity: "",
                 preloadCountry: "",
@@ -157,7 +157,7 @@ struct CourseSearchView: View {
         } label: {
             HStack(spacing: 10) {
                 CoursePhotoView(
-                    courseId: "osm-\(course.id)",
+                    courseId: course.id,
                     clubName: course.name,
                     city: "",
                     country: "",
