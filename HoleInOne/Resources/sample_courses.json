@@ -1,0 +1,56 @@
+[
+  {
+    "id": "pebble-beach-gl",
+    "name": "Pebble Beach Golf Links",
+    "city": "Pebble Beach",
+    "state": "CA",
+    "country": "USA",
+    "holes": [
+      { "number": 1,  "par": 4, "handicap": 8,  "teeCoordinate": { "latitude": 36.5686, "longitude": -121.9490 }, "pinCoordinate": { "latitude": 36.5693, "longitude": -121.9478 }, "lengthMeters": 349 },
+      { "number": 2,  "par": 5, "handicap": 14, "teeCoordinate": { "latitude": 36.5699, "longitude": -121.9474 }, "pinCoordinate": { "latitude": 36.5713, "longitude": -121.9459 }, "lengthMeters": 484 },
+      { "number": 3,  "par": 4, "handicap": 12, "teeCoordinate": { "latitude": 36.5718, "longitude": -121.9452 }, "pinCoordinate": { "latitude": 36.5730, "longitude": -121.9440 }, "lengthMeters": 373 },
+      { "number": 4,  "par": 4, "handicap": 4,  "teeCoordinate": { "latitude": 36.5735, "longitude": -121.9435 }, "pinCoordinate": { "latitude": 36.5748, "longitude": -121.9422 }, "lengthMeters": 349 },
+      { "number": 5,  "par": 3, "handicap": 16, "teeCoordinate": { "latitude": 36.5752, "longitude": -121.9418 }, "pinCoordinate": { "latitude": 36.5758, "longitude": -121.9408 }, "lengthMeters": 166 },
+      { "number": 6,  "par": 5, "handicap": 6,  "teeCoordinate": { "latitude": 36.5762, "longitude": -121.9402 }, "pinCoordinate": { "latitude": 36.5777, "longitude": -121.9385 }, "lengthMeters": 516 },
+      { "number": 7,  "par": 3, "handicap": 18, "teeCoordinate": { "latitude": 36.5781, "longitude": -121.9378 }, "pinCoordinate": { "latitude": 36.5787, "longitude": -121.9370 }, "lengthMeters": 100 },
+      { "number": 8,  "par": 4, "handicap": 2,  "teeCoordinate": { "latitude": 36.5790, "longitude": -121.9363 }, "pinCoordinate": { "latitude": 36.5804, "longitude": -121.9347 }, "lengthMeters": 411 },
+      { "number": 9,  "par": 4, "handicap": 10, "teeCoordinate": { "latitude": 36.5807, "longitude": -121.9340 }, "pinCoordinate": { "latitude": 36.5819, "longitude": -121.9325 }, "lengthMeters": 450 },
+      { "number": 10, "par": 4, "handicap": 7,  "teeCoordinate": { "latitude": 36.5822, "longitude": -121.9318 }, "pinCoordinate": { "latitude": 36.5836, "longitude": -121.9303 }, "lengthMeters": 427 },
+      { "number": 11, "par": 4, "handicap": 13, "teeCoordinate": { "latitude": 36.5840, "longitude": -121.9297 }, "pinCoordinate": { "latitude": 36.5854, "longitude": -121.9282 }, "lengthMeters": 374 },
+      { "number": 12, "par": 3, "handicap": 17, "teeCoordinate": { "latitude": 36.5857, "longitude": -121.9276 }, "pinCoordinate": { "latitude": 36.5863, "longitude": -121.9267 }, "lengthMeters": 178 },
+      { "number": 13, "par": 4, "handicap": 3,  "teeCoordinate": { "latitude": 36.5866, "longitude": -121.9260 }, "pinCoordinate": { "latitude": 36.5880, "longitude": -121.9244 }, "lengthMeters": 395 },
+      { "number": 14, "par": 5, "handicap": 9,  "teeCoordinate": { "latitude": 36.5883, "longitude": -121.9237 }, "pinCoordinate": { "latitude": 36.5897, "longitude": -121.9220 }, "lengthMeters": 548 },
+      { "number": 15, "par": 4, "handicap": 11, "teeCoordinate": { "latitude": 36.5900, "longitude": -121.9213 }, "pinCoordinate": { "latitude": 36.5913, "longitude": -121.9197 }, "lengthMeters": 379 },
+      { "number": 16, "par": 4, "handicap": 1,  "teeCoordinate": { "latitude": 36.5916, "longitude": -121.9190 }, "pinCoordinate": { "latitude": 36.5929, "longitude": -121.9174 }, "lengthMeters": 393 },
+      { "number": 17, "par": 3, "handicap": 15, "teeCoordinate": { "latitude": 36.5932, "longitude": -121.9167 }, "pinCoordinate": { "latitude": 36.5939, "longitude": -121.9158 }, "lengthMeters": 178 },
+      { "number": 18, "par": 5, "handicap": 5,  "teeCoordinate": { "latitude": 36.5942, "longitude": -121.9151 }, "pinCoordinate": { "latitude": 36.5956, "longitude": -121.9134 }, "lengthMeters": 543 }
+    ]
+  },
+  {
+    "id": "st-andrews-old-course",
+    "name": "St Andrews Old Course",
+    "city": "St Andrews",
+    "state": "Fife",
+    "country": "Scotland",
+    "holes": [
+      { "number": 1,  "par": 4, "handicap": 10, "teeCoordinate": { "latitude": 56.3420, "longitude": -2.8032 }, "pinCoordinate": { "latitude": 56.3430, "longitude": -2.8018 }, "lengthMeters": 343 },
+      { "number": 2,  "par": 4, "handicap": 6,  "teeCoordinate": { "latitude": 56.3434, "longitude": -2.8012 }, "pinCoordinate": { "latitude": 56.3446, "longitude": -2.7997 }, "lengthMeters": 411 },
+      { "number": 3,  "par": 4, "handicap": 16, "teeCoordinate": { "latitude": 56.3450, "longitude": -2.7991 }, "pinCoordinate": { "latitude": 56.3462, "longitude": -2.7977 }, "lengthMeters": 352 },
+      { "number": 4,  "par": 4, "handicap": 2,  "teeCoordinate": { "latitude": 56.3466, "longitude": -2.7971 }, "pinCoordinate": { "latitude": 56.3479, "longitude": -2.7956 }, "lengthMeters": 419 },
+      { "number": 5,  "par": 5, "handicap": 14, "teeCoordinate": { "latitude": 56.3483, "longitude": -2.7950 }, "pinCoordinate": { "latitude": 56.3497, "longitude": -2.7934 }, "lengthMeters": 513 },
+      { "number": 6,  "par": 4, "handicap": 12, "teeCoordinate": { "latitude": 56.3501, "longitude": -2.7928 }, "pinCoordinate": { "latitude": 56.3514, "longitude": -2.7912 }, "lengthMeters": 374 },
+      { "number": 7,  "par": 4, "handicap": 8,  "teeCoordinate": { "latitude": 56.3518, "longitude": -2.7906 }, "pinCoordinate": { "latitude": 56.3531, "longitude": -2.7890 }, "lengthMeters": 359 },
+      { "number": 8,  "par": 3, "handicap": 18, "teeCoordinate": { "latitude": 56.3535, "longitude": -2.7883 }, "pinCoordinate": { "latitude": 56.3542, "longitude": -2.7874 }, "lengthMeters": 159 },
+      { "number": 9,  "par": 4, "handicap": 4,  "teeCoordinate": { "latitude": 56.3546, "longitude": -2.7867 }, "pinCoordinate": { "latitude": 56.3559, "longitude": -2.7851 }, "lengthMeters": 307 },
+      { "number": 10, "par": 4, "handicap": 9,  "teeCoordinate": { "latitude": 56.3563, "longitude": -2.7844 }, "pinCoordinate": { "latitude": 56.3550, "longitude": -2.7829 }, "lengthMeters": 318 },
+      { "number": 11, "par": 3, "handicap": 15, "teeCoordinate": { "latitude": 56.3546, "longitude": -2.7822 }, "pinCoordinate": { "latitude": 56.3538, "longitude": -2.7812 }, "lengthMeters": 172 },
+      { "number": 12, "par": 4, "handicap": 11, "teeCoordinate": { "latitude": 56.3534, "longitude": -2.7806 }, "pinCoordinate": { "latitude": 56.3522, "longitude": -2.7791 }, "lengthMeters": 312 },
+      { "number": 13, "par": 4, "handicap": 3,  "teeCoordinate": { "latitude": 56.3518, "longitude": -2.7784 }, "pinCoordinate": { "latitude": 56.3505, "longitude": -2.7769 }, "lengthMeters": 398 },
+      { "number": 14, "par": 5, "handicap": 5,  "teeCoordinate": { "latitude": 56.3501, "longitude": -2.7762 }, "pinCoordinate": { "latitude": 56.3487, "longitude": -2.7746 }, "lengthMeters": 524 },
+      { "number": 15, "par": 4, "handicap": 13, "teeCoordinate": { "latitude": 56.3483, "longitude": -2.7739 }, "pinCoordinate": { "latitude": 56.3469, "longitude": -2.7723 }, "lengthMeters": 385 },
+      { "number": 16, "par": 4, "handicap": 7,  "teeCoordinate": { "latitude": 56.3465, "longitude": -2.7716 }, "pinCoordinate": { "latitude": 56.3451, "longitude": -2.7700 }, "lengthMeters": 349 },
+      { "number": 17, "par": 4, "handicap": 1,  "teeCoordinate": { "latitude": 56.3447, "longitude": -2.7693 }, "pinCoordinate": { "latitude": 56.3433, "longitude": -2.7678 }, "lengthMeters": 495 },
+      { "number": 18, "par": 4, "handicap": 17, "teeCoordinate": { "latitude": 56.3429, "longitude": -2.7671 }, "pinCoordinate": { "latitude": 56.3421, "longitude": -2.8020 }, "lengthMeters": 354 }
+    ]
+  }
+]
