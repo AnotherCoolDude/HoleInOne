@@ -42,8 +42,12 @@ final class WatchConnectivityManager: NSObject {
 
     /// Sends distance/hole state. Uses updateApplicationContext so only latest matters.
     func sendToWatch(_ payload: WatchPayload) {
+        #if os(iOS)
         guard WCSession.default.activationState == .activated,
               WCSession.default.isWatchAppInstalled else { return }
+        #else
+        guard WCSession.default.activationState == .activated else { return }
+        #endif
         do {
             let dict = try payload.asDictionary()
             try WCSession.default.updateApplicationContext(dict)
