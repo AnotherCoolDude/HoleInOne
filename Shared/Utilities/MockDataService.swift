@@ -3,137 +3,178 @@ import Foundation
 import SwiftData
 
 /// Seeds the SwiftData store with realistic mock data for simulator testing.
-/// Runs once per install — guarded by a UserDefaults flag so it never
-/// overwrites data the user has already created.
+/// Fetches real courses from GolfCourseAPI and uses actual hole par data.
+/// Runs once per install — guarded by a UserDefaults flag.
 @MainActor
 enum MockDataService {
 
-    private static let seededKey = "mock_data_seeded_v1"
+    private static let seededKey = "mock_data_seeded_v2"
 
-    static func seedIfNeeded(modelContext: ModelContext) {
+    static func seedIfNeeded(modelContext: ModelContext) async {
         guard !UserDefaults.standard.bool(forKey: seededKey) else { return }
-        seed(modelContext: modelContext)
+        await seed(modelContext: modelContext)
         UserDefaults.standard.set(true, forKey: seededKey)
     }
 
-    // Call this from a debug menu / button to reset and re-seed at any time.
-    static func reseed(modelContext: ModelContext) {
+    /// Reset and re-seed — useful from a debug button.
+    static func reseed(modelContext: ModelContext) async {
         UserDefaults.standard.removeObject(forKey: seededKey)
-        seed(modelContext: modelContext)
+        await seed(modelContext: modelContext)
         UserDefaults.standard.set(true, forKey: seededKey)
     }
 
     // MARK: - Private
 
-    private static func seed(modelContext: ModelContext) {
+    private static func seed(modelContext: ModelContext) async {
         seedProfile()
-        seedSavedCourses(modelContext: modelContext)
-        seedRounds(modelContext: modelContext)
+
+        let courses = await fetchSampleCourses()
+
+        if courses.isEmpty {
+            // API unreachable — fall back to bundled course data
+            let bundled = (try? GolfAPIService.shared.loadBundledCourses()) ?? []
+            seedSavedCourses(modelContext: modelContext, courses: bundled)
+            seedRounds(modelContext: modelContext, courses: bundled)
+        } else {
+            seedSavedCourses(modelContext: modelContext, courses: courses)
+            seedRounds(modelContext: modelContext, courses: courses)
+        }
+
         try? modelContext.save()
     }
 
-    // MARK: Player profile
+    // MARK: - Fetch real courses from the API
+
+    private static func fetchSampleCourses() async -> [GolfCourse] {
+        let api = GolfAPIService.shared
+        var courses: [GolfCourse] = []
+
+        // Search queries → we keep the first match for each
+        let queries = ["Pebble Beach Golf Links", "Torrey Pines Golf Course", "TPC Sawgrass"]
+
+        for query in queries {
+            guard courses.count < 3 else { break }
+            do {
+                if let result = try await api.searchCourses(query: query, maxResults: 1, maxPages: 5).first {
+                    let detail = try await api.fetchCourse(id: result.id)
+                    let course = await api.toGolfCourse(detail, teeGender: "male", preferredTeeName: "White")
+                    courses.append(course)
+                    print("[MockData] Fetched: \(course.name) (\(course.holes.count) holes)")
+                }
+            } catch {
+                print("[MockData] Could not fetch \"\(query)\": \(error.localizedDescription)")
+            }
+        }
+
+        return courses
+    }
+
+    // MARK: - Player profile
 
     private static func seedProfile() {
         let profile = PlayerProfile.shared
+        guard profile.name.isEmpty else { return }   // don't overwrite if already set
         profile.name = "Alex"
         profile.handicapIndex = 14.2
         profile.teeGender = .male
         profile.preferredTeeName = "White"
     }
 
-    // MARK: Saved courses (favourites + recent)
+    // MARK: - Saved courses
 
-    private static func seedSavedCourses(modelContext: ModelContext) {
+    private static func seedSavedCourses(modelContext: ModelContext, courses: [GolfCourse]) {
         let calendar = Calendar.current
         let now = Date.now
 
-        // Pebble Beach — favourite + recently played
-        let pebble = SavedCourse(
-            courseId: "pebble-beach-gl",
-            courseName: "Pebble Beach Golf Links",
-            city: "Pebble Beach",
-            country: "USA",
-            isFavourite: true
-        )
-        pebble.lastPlayed = calendar.date(byAdding: .day, value: -3, to: now) ?? now
-        modelContext.insert(pebble)
-
-        // St Andrews — favourite, not yet played
-        let standrews = SavedCourse(
-            courseId: "st-andrews-old-course",
-            courseName: "St Andrews Old Course",
-            city: "St Andrews",
-            country: "Scotland",
-            isFavourite: true
-        )
-        // lastPlayed stays at .distantPast (set by the lightweight init)
-        modelContext.insert(standrews)
-
-        // Augusta National — recently played, not a favourite
-        let augusta = SavedCourse(
-            courseId: "augusta-national",
-            courseName: "Augusta National Golf Club",
-            city: "Augusta",
-            country: "USA",
-            isFavourite: false
-        )
-        augusta.lastPlayed = calendar.date(byAdding: .day, value: -10, to: now) ?? now
-        modelContext.insert(augusta)
+        for (index, course) in courses.prefix(3).enumerated() {
+            let saved = SavedCourse(
+                courseId: course.id,
+                courseName: course.name,
+                city: course.city,
+                country: course.country,
+                isFavourite: index < 2          // first two are favourites
+            )
+            // First course played 3 days ago, second 10 days ago, third is favourite-only
+            switch index {
+            case 0: saved.lastPlayed = calendar.date(byAdding: .day, value: -3,  to: now) ?? now
+            case 1: saved.lastPlayed = calendar.date(byAdding: .day, value: -10, to: now) ?? now
+            default: break  // lastPlayed stays .distantPast
+            }
+            modelContext.insert(saved)
+        }
     }
 
-    // MARK: Round history
+    // MARK: - Round history
 
-    private static func seedRounds(modelContext: ModelContext) {
+    private static func seedRounds(modelContext: ModelContext, courses: [GolfCourse]) {
         let calendar = Calendar.current
         let now = Date.now
 
-        // Round 1 — Pebble Beach, all 18, played 3 days ago (+5 over par)
-        let round1 = RoundResult(
-            courseId: "pebble-beach-gl",
-            courseName: "Pebble Beach Golf Links",
+        guard let first = courses.first else { return }
+
+        // Round 1 — first course, all 18, 3 days ago
+        insertRound(
+            modelContext: modelContext,
+            course: first,
+            selection: .all18,
             date: calendar.date(byAdding: .day, value: -3, to: now) ?? now,
-            holeSelection: Round.HoleSelection.all18.rawValue
+            strokesOverPar: strokeOffsets(holes: first.holes.count, pattern: [1, 1, 0, 1, 0, 1, 0, 1, 1])
         )
-        let pebblePars = [4,5,4,4,3,5,3,4,4,4,4,3,4,5,4,4,3,5]
-        let pebbleStrokes = [5,6,4,5,3,6,4,5,5,4,5,3,5,6,5,4,4,6]
-        for i in 0..<18 {
-            let h = HoleResult(holeNumber: i+1, par: pebblePars[i], swingCount: pebbleStrokes[i])
-            modelContext.insert(h)
-            round1.holeResults.append(h)
-        }
-        modelContext.insert(round1)
 
-        // Round 2 — Pebble Beach, front 9, played 3 days ago (earlier in the day) (-1 under par)
-        let round2 = RoundResult(
-            courseId: "pebble-beach-gl",
-            courseName: "Pebble Beach Golf Links",
+        // Round 2 — first course, front 9, also 3 days ago (earlier)
+        insertRound(
+            modelContext: modelContext,
+            course: first,
+            selection: .front9,
             date: calendar.date(byAdding: .hour, value: -74, to: now) ?? now,
-            holeSelection: Round.HoleSelection.front9.rawValue
+            strokesOverPar: strokeOffsets(holes: 9, pattern: [0, 1, 0, 0, -1, 1, 0, 1, 0])
         )
-        let front9Strokes = [4,5,4,4,2,5,3,4,4]
-        for i in 0..<9 {
-            let h = HoleResult(holeNumber: i+1, par: pebblePars[i], swingCount: front9Strokes[i])
-            modelContext.insert(h)
-            round2.holeResults.append(h)
-        }
-        modelContext.insert(round2)
 
-        // Round 3 — Augusta National, all 18, played 10 days ago (+12 over par, rough day)
-        let augustaPars   = [4,5,4,3,4,3,4,5,4,4,4,3,5,4,5,3,4,4]
-        let augustaStrokes = [5,6,6,4,5,4,6,6,5,5,5,4,6,5,6,5,5,5]
-        let round3 = RoundResult(
-            courseId: "augusta-national",
-            courseName: "Augusta National Golf Club",
-            date: calendar.date(byAdding: .day, value: -10, to: now) ?? now,
-            holeSelection: Round.HoleSelection.all18.rawValue
-        )
-        for i in 0..<18 {
-            let h = HoleResult(holeNumber: i+1, par: augustaPars[i], swingCount: augustaStrokes[i])
-            modelContext.insert(h)
-            round3.holeResults.append(h)
+        if courses.count >= 2 {
+            let second = courses[1]
+            // Round 3 — second course, all 18, 10 days ago
+            insertRound(
+                modelContext: modelContext,
+                course: second,
+                selection: .all18,
+                date: calendar.date(byAdding: .day, value: -10, to: now) ?? now,
+                strokesOverPar: strokeOffsets(holes: second.holes.count, pattern: [2, 1, 2, 1, 1, 2, 1, 2, 1])
+            )
         }
-        modelContext.insert(round3)
+    }
+
+    /// Inserts a `RoundResult` with `HoleResult` entries whose stroke counts are
+    /// the hole's real par plus the corresponding offset (wraps around the pattern).
+    private static func insertRound(
+        modelContext: ModelContext,
+        course: GolfCourse,
+        selection: Round.HoleSelection,
+        date: Date,
+        strokesOverPar: [Int]
+    ) {
+        let round = RoundResult(
+            courseId: course.id,
+            courseName: course.name,
+            date: date,
+            holeSelection: selection.rawValue
+        )
+        modelContext.insert(round)
+
+        let activeHoles = course.holes.filter { selection.holeNumbers.contains($0.number) }
+        for (i, hole) in activeHoles.enumerated() {
+            let offset = strokesOverPar[i % strokesOverPar.count]
+            let strokes = max(1, hole.par + offset)
+            let result = HoleResult(holeNumber: hole.number, par: hole.par, swingCount: strokes)
+            modelContext.insert(result)
+            round.holeResults.append(result)
+        }
+    }
+
+    /// Builds an array of per-hole stroke offsets of the required length by
+    /// repeating and cycling through `pattern`.
+    private static func strokeOffsets(holes: Int, pattern: [Int]) -> [Int] {
+        guard !pattern.isEmpty else { return Array(repeating: 1, count: holes) }
+        return (0..<holes).map { pattern[$0 % pattern.count] }
     }
 }
 #endif

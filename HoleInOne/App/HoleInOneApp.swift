@@ -13,9 +13,9 @@ struct HoleInOneApp: App {
         WindowGroup {
             CourseSearchView()
                 .environment(PlayerProfile.shared)
-                .onAppear {
+                .task {
                     #if DEBUG
-                    MockDataService.seedIfNeeded(modelContext: container.mainContext)
+                    await MockDataService.seedIfNeeded(modelContext: container.mainContext)
                     #endif
                 }
         }
