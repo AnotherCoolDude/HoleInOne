@@ -288,6 +288,11 @@ actor GolfAPIService {
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
+            #if DEBUG
+            let raw = String(data: data, encoding: .utf8) ?? "<non-UTF8>"
+            print("[GolfAPI] Decode error: \(error)")
+            print("[GolfAPI] Raw response: \(raw.prefix(1000))")
+            #endif
             throw GolfCourseAPIError.decodingFailed(error)
         }
     }
@@ -361,38 +366,38 @@ private struct MetadataDTO: Decodable {
 
 private struct CourseDTO: Decodable {
     let id: Int
-    let club_name: String
-    let course_name: String
+    let club_name: String?
+    let course_name: String?
     let location: LocationDTO
-    let tees: TeesDTO
+    let tees: TeesDTO?
 
     var asDomain: CourseAPIResult {
         CourseAPIResult(
             id: id,
-            clubName: club_name,
-            courseName: course_name,
+            clubName: club_name ?? "",
+            courseName: course_name ?? "",
             location: location.asDomain,
-            tees: tees.asDomain
+            tees: tees?.asDomain ?? CourseAPITees(male: [], female: [])
         )
     }
 }
 
 private struct LocationDTO: Decodable {
-    let address: String
-    let city: String
-    let state: String
-    let country: String
-    let latitude: Double
-    let longitude: Double
+    let address: String?
+    let city: String?
+    let state: String?
+    let country: String?
+    let latitude: Double?
+    let longitude: Double?
 
     var asDomain: CourseAPILocation {
         CourseAPILocation(
-            address: address,
-            city: city,
-            state: state,
-            country: country,
-            latitude: latitude,
-            longitude: longitude
+            address: address ?? "",
+            city: city ?? "",
+            state: state ?? "",
+            country: country ?? "",
+            latitude: latitude ?? 0,
+            longitude: longitude ?? 0
         )
     }
 }
@@ -411,49 +416,49 @@ private struct TeesDTO: Decodable {
 }
 
 private struct TeeOptionDTO: Decodable {
-    let tee_name: String
-    let course_rating: Double
-    let slope_rating: Int
-    let bogey_rating: Double
-    let total_yards: Int
-    let total_meters: Int
-    let number_of_holes: Int
-    let par_total: Int
-    let front_course_rating: Double
-    let front_slope_rating: Int
-    let front_bogey_rating: Double
-    let back_course_rating: Double
-    let back_slope_rating: Int
-    let back_bogey_rating: Double
-    let holes: [TeeHoleDTO]
+    let tee_name: String?
+    let course_rating: Double?
+    let slope_rating: Int?
+    let bogey_rating: Double?
+    let total_yards: Int?
+    let total_meters: Int?
+    let number_of_holes: Int?
+    let par_total: Int?
+    let front_course_rating: Double?
+    let front_slope_rating: Int?
+    let front_bogey_rating: Double?
+    let back_course_rating: Double?
+    let back_slope_rating: Int?
+    let back_bogey_rating: Double?
+    let holes: [TeeHoleDTO]?
 
     var asDomain: CourseTeeOption {
         CourseTeeOption(
-            teeName: tee_name,
-            courseRating: course_rating,
-            slopeRating: slope_rating,
-            bogeyRating: bogey_rating,
-            totalYards: total_yards,
-            totalMeters: total_meters,
-            numberOfHoles: number_of_holes,
-            parTotal: par_total,
-            frontCourseRating: front_course_rating,
-            frontSlopeRating: front_slope_rating,
-            frontBogeyRating: front_bogey_rating,
-            backCourseRating: back_course_rating,
-            backSlopeRating: back_slope_rating,
-            backBogeyRating: back_bogey_rating,
-            holes: holes.map(\.asDomain)
+            teeName: tee_name ?? "",
+            courseRating: course_rating ?? 0,
+            slopeRating: slope_rating ?? 0,
+            bogeyRating: bogey_rating ?? 0,
+            totalYards: total_yards ?? 0,
+            totalMeters: total_meters ?? 0,
+            numberOfHoles: number_of_holes ?? 18,
+            parTotal: par_total ?? 0,
+            frontCourseRating: front_course_rating ?? 0,
+            frontSlopeRating: front_slope_rating ?? 0,
+            frontBogeyRating: front_bogey_rating ?? 0,
+            backCourseRating: back_course_rating ?? 0,
+            backSlopeRating: back_slope_rating ?? 0,
+            backBogeyRating: back_bogey_rating ?? 0,
+            holes: holes?.map(\.asDomain) ?? []
         )
     }
 }
 
 private struct TeeHoleDTO: Decodable {
-    let par: Int
-    let yardage: Int
-    let handicap: Int
+    let par: Int?
+    let yardage: Int?
+    let handicap: Int?
 
     var asDomain: TeeHole {
-        TeeHole(par: par, yardage: yardage, handicap: handicap)
+        TeeHole(par: par ?? 4, yardage: yardage ?? 0, handicap: handicap ?? 0)
     }
 }

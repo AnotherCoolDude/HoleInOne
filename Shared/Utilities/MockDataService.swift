@@ -8,7 +8,7 @@ import SwiftData
 @MainActor
 enum MockDataService {
 
-    private static let seededKey = "mock_data_seeded_v2"
+    private static let seededKey = "mock_data_seeded_v3"
 
     static func seedIfNeeded(modelContext: ModelContext) async {
         guard !UserDefaults.standard.bool(forKey: seededKey) else { return }
