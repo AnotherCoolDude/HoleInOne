@@ -4,3 +4,5 @@ xcuserdata/
 .DS_Store
 DerivedData/
 *.xcworkspace/xcuserdata/
+# XcodeGen output — regenerate with: xcodegen generate
+HoleInOne.xcodeproj/
