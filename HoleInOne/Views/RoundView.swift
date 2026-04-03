@@ -243,6 +243,12 @@ struct RoundView: View {
                                 .foregroundStyle(.green)
                         }
                     }
+
+                    // Stroke-budget indicator — only shown when player has a handicap
+                    if PlayerProfile.shared.handicapIndex > 0 {
+                        strokeBudgetView
+                            .padding(.top, 2)
+                    }
                 }
 
                 markTeeButton
@@ -259,6 +265,65 @@ struct RoundView: View {
             }
             .disabled(viewModel.round.isOnLastHole)
         }
+    }
+
+    // MARK: - Stroke budget indicator
+
+    /// Shows the player how many strokes they have left before hitting their net par.
+    ///
+    /// Net Par = hole par + extra handicap strokes on this hole
+    ///
+    /// Examples (course handicap 40, par-4 hole with stroke index 3):
+    ///   Extra strokes = 3  →  Net Par = 7
+    ///   After 4 swings:  "3 left to net par"  (green)
+    ///   After 7 swings:  "Net par  ✓"         (blue)
+    ///   After 9 swings:  "+2 over net par"     (red)
+    @ViewBuilder
+    private var strokeBudgetView: some View {
+        let netPar   = viewModel.currentHoleNetPar
+        let extra    = viewModel.extraStrokesOnCurrentHole
+        let remaining = viewModel.strokesUntilNetPar
+
+        // Only show the extra-strokes indicator when the player actually receives strokes
+        let label: String
+        let color: Color
+        let icon: String
+
+        if remaining > 0 {
+            label = "\(remaining) left · Net par \(netPar)"
+            color = remaining <= 1 ? .orange : .green
+            icon  = "flag"
+        } else if remaining == 0 {
+            label = "Net par \(netPar)  ✓"
+            color = .blue
+            icon  = "checkmark"
+        } else {
+            label = "+\(abs(remaining)) over net par"
+            color = .red
+            icon  = "exclamationmark"
+        }
+
+        HStack(spacing: 5) {
+            if extra > 0 {
+                // Show the extra strokes badge so the player knows they have allowance
+                Text("+\(extra)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(color.opacity(0.85), in: Capsule())
+            }
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .animation(.easeInOut(duration: 0.2), value: remaining)
     }
 
     // MARK: - Mark tee button

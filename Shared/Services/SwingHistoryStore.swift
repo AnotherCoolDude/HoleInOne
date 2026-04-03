@@ -25,11 +25,19 @@ final class SwingHistoryStore {
         return round
     }
 
-    func updateSwingCount(round: RoundResult, holeNumber: Int, par: Int, swingCount: Int) {
+    func updateSwingCount(
+        round: RoundResult,
+        holeNumber: Int,
+        par: Int,
+        swingCount: Int,
+        strokeIndex: Int = 0
+    ) {
         if let existing = round.holeResults.first(where: { $0.holeNumber == holeNumber }) {
-            existing.swingCount = swingCount
+            existing.swingCount  = swingCount
+            if strokeIndex > 0 { existing.strokeIndex = strokeIndex }  // update if known
         } else {
-            let result = HoleResult(holeNumber: holeNumber, par: par, swingCount: swingCount)
+            let result = HoleResult(holeNumber: holeNumber, par: par,
+                                    swingCount: swingCount, strokeIndex: strokeIndex)
             modelContext.insert(result)
             round.holeResults.append(result)
         }

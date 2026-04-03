@@ -170,6 +170,45 @@ final class RoundViewModel {
         swingCounts[round.currentHole.number, default: 0]
     }
 
+    // MARK: - Stroke allowance (net par)
+
+    /// The player's Course Handicap for this course and tee.
+    /// Course Handicap = round(Index × Slope / 113 + (Rating − Par))
+    var courseHandicap: Int {
+        let course = round.course
+        let par = Double(course.holes.reduce(0) { $0 + $1.par })
+        return HandicapCalculator.courseHandicap(
+            handicapIndex: PlayerProfile.shared.handicapIndex,
+            slopeRating:   course.slopeRating,
+            courseRating:  course.courseRating,
+            par:           par
+        )
+    }
+
+    /// Net Par for the current hole: hole par + extra strokes received.
+    var currentHoleNetPar: Int {
+        let hole = round.currentHole
+        return HandicapCalculator.netPar(
+            holePar:       hole.par,
+            strokeIndex:   hole.handicap,
+            courseHandicap: courseHandicap
+        )
+    }
+
+    /// How many more strokes the player can take and still achieve net par.
+    /// Negative means they have already gone over net par.
+    var strokesUntilNetPar: Int {
+        currentHoleNetPar - currentSwingCount
+    }
+
+    /// Extra strokes received on the current hole (0 when handicap index is 0).
+    var extraStrokesOnCurrentHole: Int {
+        HandicapCalculator.extraStrokes(
+            courseHandicap: courseHandicap,
+            strokeIndex:    round.currentHole.handicap
+        )
+    }
+
     // MARK: - Unit preference
 
     func setUnit(_ unit: DistanceUnit) {
@@ -226,7 +265,13 @@ final class RoundViewModel {
 
     private func persistSwing(hole: Int) {
         guard let store = historyStore, let result = activeRoundResult else { return }
-        let par = round.course.holes.first(where: { $0.number == hole })?.par ?? 4
-        store.updateSwingCount(round: result, holeNumber: hole, par: par, swingCount: swingCounts[hole, default: 0])
+        let golfHole     = round.course.holes.first(where: { $0.number == hole })
+        let par          = golfHole?.par ?? 4
+        let strokeIndex  = golfHole?.handicap ?? 0   // hole handicap = WHS stroke index
+        store.updateSwingCount(
+            round: result, holeNumber: hole, par: par,
+            swingCount: swingCounts[hole, default: 0],
+            strokeIndex: strokeIndex
+        )
     }
 }

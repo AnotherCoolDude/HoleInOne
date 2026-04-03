@@ -35,6 +35,41 @@ import Foundation
 
 enum HandicapCalculator {
 
+    // MARK: - Per-hole stroke allowance
+
+    /// Returns the number of extra strokes a player receives on one specific hole.
+    ///
+    /// WHS distributes Course Handicap strokes across the 18 holes using the
+    /// stroke index (a ranking from 1 = hardest to 18 = easiest):
+    ///
+    ///   full strokes = courseHandicap / 18   (every hole gets at least this many)
+    ///   remainder    = courseHandicap % 18   (this many holes get one additional)
+    ///   → holes whose stroke index ≤ remainder receive full + 1 strokes
+    ///   → all other holes receive full strokes
+    ///
+    /// Example: courseHandicap = 40, strokeIndex = 3
+    ///   full = 2, remainder = 4 → strokeIndex 3 ≤ 4 → 2 + 1 = 3 extra strokes
+    ///
+    /// - Parameters:
+    ///   - courseHandicap: The player's course handicap (not the index).
+    ///   - strokeIndex:    The hole's difficulty rank (1–18). 0 means unknown.
+    static func extraStrokes(courseHandicap: Int, strokeIndex: Int) -> Int {
+        guard courseHandicap > 0, strokeIndex >= 1, strokeIndex <= 18 else { return 0 }
+        let fullStrokes = courseHandicap / 18
+        let remainder   = courseHandicap % 18
+        return fullStrokes + (strokeIndex <= remainder ? 1 : 0)
+    }
+
+    /// Returns the Net Par for a hole: hole par plus any extra strokes received.
+    ///
+    ///   Net Par = holePar + extraStrokes(courseHandicap, strokeIndex)
+    ///
+    /// This is the stroke target the player is trying to beat: finishing at or
+    /// below Net Par counts as a "net par" or better for the hole.
+    static func netPar(holePar: Int, strokeIndex: Int, courseHandicap: Int) -> Int {
+        holePar + extraStrokes(courseHandicap: courseHandicap, strokeIndex: strokeIndex)
+    }
+
     // MARK: - Public output
 
     struct Assessment {

@@ -52,11 +52,16 @@ final class HoleResult {
     var holeNumber: Int
     var par: Int
     var swingCount: Int
+    /// The hole's stroke index (difficulty rank 1–18). Used to distribute
+    /// handicap strokes per hole. 0 means unknown (recorded before this field
+    /// was added — SwiftData migrates automatically with this default).
+    var strokeIndex: Int = 0
 
-    init(holeNumber: Int, par: Int, swingCount: Int) {
-        self.holeNumber = holeNumber
-        self.par = par
-        self.swingCount = swingCount
+    init(holeNumber: Int, par: Int, swingCount: Int, strokeIndex: Int = 0) {
+        self.holeNumber  = holeNumber
+        self.par         = par
+        self.swingCount  = swingCount
+        self.strokeIndex = strokeIndex
     }
 
     var scoreToPar: Int {

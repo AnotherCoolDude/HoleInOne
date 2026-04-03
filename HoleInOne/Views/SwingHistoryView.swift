@@ -276,40 +276,119 @@ private struct RoundDetailView: View {
     // MARK: - Hole by hole section
 
     private var holeByHoleSection: some View {
-        Section("Hole by Hole") {
+        let courseHcp = assessment.courseHandicap
+        let hasStrokeData = sortedHoles.contains { $0.strokeIndex > 0 }
+
+        return Section {
             ForEach(sortedHoles) { hole in
-                HStack {
-                    Text("Hole \(hole.holeNumber)")
-                        .frame(minWidth: 55, alignment: .leading)
-                    Text("Par \(hole.par)")
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 44, alignment: .leading)
-                    Spacer()
-                    Text("\(hole.swingCount) strokes")
-                        .monospacedDigit()
-                    scoreChip(for: hole)
-                        .frame(minWidth: 80, alignment: .trailing)
-                }
-                .font(.subheadline)
+                holeRow(hole: hole, courseHandicap: courseHcp, hasStrokeData: hasStrokeData)
             }
+        } header: {
+            HStack {
+                Text("Hole by Hole")
+                Spacer()
+                // Column headers
+                Text("Gross")
+                    .frame(minWidth: 42, alignment: .center)
+                if hasStrokeData {
+                    Text("Net")
+                        .frame(minWidth: 42, alignment: .center)
+                }
+            }
+            .font(.caption)
+            .textCase(nil)
+            .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
-    private func scoreChip(for hole: HoleResult) -> some View {
-        let s = hole.scoreToPar
-        let label = hole.scoreLabel
-        let color: Color = s < -1 ? .purple : s == -1 ? .green : s == 0 ? .primary
-            : s == 1 ? .orange : .red
+    private func holeRow(hole: HoleResult, courseHandicap: Int, hasStrokeData: Bool) -> some View {
+        let grossToPar  = hole.scoreToPar
+        let extra       = hole.strokeIndex > 0
+            ? HandicapCalculator.extraStrokes(courseHandicap: courseHandicap, strokeIndex: hole.strokeIndex)
+            : 0
+        let netPar      = hole.par + extra
+        let netToPar    = hole.swingCount - netPar
 
-        Text(label)
-            .font(.caption.bold())
-            .foregroundStyle(s == 0 ? .secondary : color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(
-                s == 0 ? Color.clear : color.opacity(0.1),
-                in: RoundedRectangle(cornerRadius: 6)
-            )
+        HStack(spacing: 0) {
+            // Hole number + par
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Hole \(hole.holeNumber)")
+                    .font(.subheadline)
+                HStack(spacing: 4) {
+                    Text("Par \(hole.par)")
+                        .foregroundStyle(.secondary)
+                    if extra > 0 {
+                        Text("+\(extra)")
+                            .foregroundStyle(.indigo)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(.indigo.opacity(0.1), in: Capsule())
+                    }
+                }
+                .font(.caption)
+            }
+
+            Spacer()
+
+            // Gross score chip
+            scoreChip(strokes: hole.swingCount, toPar: grossToPar, label: grossLabel(grossToPar))
+                .frame(minWidth: 42, alignment: .center)
+
+            // Net score chip (only when stroke index data is available)
+            if hasStrokeData && hole.strokeIndex > 0 {
+                scoreChip(strokes: hole.swingCount, toPar: netToPar, label: netLabel(netToPar), isNet: true)
+                    .frame(minWidth: 42, alignment: .center)
+            } else if hasStrokeData {
+                Text("—")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(minWidth: 42, alignment: .center)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func scoreChip(strokes: Int, toPar: Int, label: String, isNet: Bool = false) -> some View {
+        let color: Color = toPar < -1 ? .purple
+            : toPar == -1 ? .green
+            : toPar == 0  ? (isNet ? .blue : .primary)
+            : toPar == 1  ? .orange
+            : .red
+
+        VStack(spacing: 1) {
+            Text("\(strokes)")
+                .font(.subheadline.bold())
+                .monospacedDigit()
+            Text(label)
+                .font(.system(size: 9))
+        }
+        .foregroundStyle(toPar == 0 && !isNet ? .secondary : color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            (toPar == 0 && !isNet) ? Color.clear : color.opacity(0.1),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+    }
+
+    private func grossLabel(_ toPar: Int) -> String {
+        switch toPar {
+        case ..<(-1): return "Eagle"
+        case -1:      return "Birdie"
+        case 0:       return "Par"
+        case 1:       return "Bogey"
+        case 2:       return "Dbl"
+        default:      return "+\(toPar)"
+        }
+    }
+
+    private func netLabel(_ toPar: Int) -> String {
+        switch toPar {
+        case ..<0: return "Net \(toPar)"
+        case 0:    return "Net par"
+        default:   return "Net +\(toPar)"
+        }
     }
 }
