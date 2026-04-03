@@ -15,11 +15,11 @@ struct CourseSearchView: View {
             List {
                 if isSearching {
                     searchSection
+                    browseSection
                 } else {
                     favouritesSection
                     recentSection
                     nearbySection
-                    browseSection
                 }
             }
             .navigationTitle(profile.name.isEmpty ? "HoleInOne" : "Hi, \(profile.name) 👋")
@@ -31,7 +31,6 @@ struct CourseSearchView: View {
             }
             .task {
                 locationManager.requestPermission()
-                await viewModel.loadFirstPage()
                 viewModel.loadRecentCourses(store: SwingHistoryStore(modelContext: modelContext))
                 viewModel.loadFavourites(store: SwingHistoryStore(modelContext: modelContext))
             }
@@ -200,7 +199,9 @@ struct CourseSearchView: View {
                     .frame(maxWidth: .infinity)
             }
         } header: {
-            Text("\(viewModel.totalCourses.formatted()) courses worldwide")
+            if viewModel.totalCourses > 0 {
+                Text("All courses (\(viewModel.totalCourses.formatted()) worldwide)")
+            }
         }
     }
 

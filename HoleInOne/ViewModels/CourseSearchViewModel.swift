@@ -87,18 +87,21 @@ final class CourseSearchViewModel {
         isLoadingNearby = true
         defer { isLoadingNearby = false }
 
-        // Reverse-geocode to get the most specific usable place name
+        // Force English locale so the API's English-named dataset matches
+        // regardless of the device language (e.g. "Munich" not "München")
         let geocoder = CLGeocoder()
-        let placemarks = try? await geocoder.reverseGeocodeLocation(location)
+        let english  = Locale(identifier: "en_US")
+        let placemarks = try? await geocoder.reverseGeocodeLocation(location, preferredLocale: english)
         let city    = placemarks?.first?.locality ?? ""
         let country = placemarks?.first?.country  ?? ""
-        let query   = city.isEmpty ? country : city
-        guard !query.isEmpty else { return }
 
-        // Fetch candidates (city search is narrow enough that 5 pages suffice)
-        guard let candidates = try? await api.searchCourses(
-            query: query, maxResults: 60, maxPages: 5
-        ) else { return }
+        // Try city first; fall back to country if city yields nothing
+        var candidates = city.isEmpty ? [] :
+            (try? await api.searchCourses(query: city,    maxResults: 60, maxPages: 5)) ?? []
+        if candidates.isEmpty && !country.isEmpty {
+            candidates = (try? await api.searchCourses(query: country, maxResults: 60, maxPages: 10)) ?? []
+        }
+        guard !candidates.isEmpty else { return }
 
         // Sort by crow-flies distance; drop courses with no coordinates
         let sorted = candidates
@@ -109,8 +112,8 @@ final class CourseSearchViewModel {
                 return location.distance(from: a) < location.distance(from: b)
             }
 
-        nearbyCourses    = Array(sorted.prefix(10))
-        nearbyLoadedFor  = location
+        nearbyCourses   = Array(sorted.prefix(10))
+        nearbyLoadedFor = location
     }
 
     /// Formatted distance string from the last known user location to a course.
