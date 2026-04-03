@@ -228,6 +228,14 @@ actor GolfAPIService {
 
         let expectedHoles = tee?.numberOfHoles ?? 18
 
+        // Layer 0: club website scraping (imagery + scorecard data for German clubs)
+        // Runs concurrently with GPS enrichment — does not block the main pipeline.
+        async let webDataTask = ClubWebsiteScraper.shared.scrape(
+            courseId: courseId,
+            clubName: result.clubName,
+            city: result.location.city
+        )
+
         // Layer 1: OSM hole coordinates (free, cached 30 days)
         let osmData = try? await OSMGolfService.shared.fetchHoleCoordinates(
             courseId: courseId,
@@ -248,6 +256,9 @@ actor GolfAPIService {
         // Final GPS source: OSM > satellite > course-centre placeholder
         let gpsData = osmUsable ? osmData : (satData?.quality.isUsable == true ? satData : osmData)
 
+        // Await web scrape result (started concurrently above)
+        let webData = await webDataTask
+
         // Satellite detection returns unordered candidates — assign by sorted order
         // (closest candidate to each hole's index position along the course)
         let satPins: [Coordinate] = satData?.holes
@@ -260,6 +271,12 @@ actor GolfAPIService {
             return index < sorted.count ? sorted[index] : nil
         }
 
+        // Build a lookup from scraped website data for fallback par/hcp/length
+        let webHoleLookup: [Int: ClubWebData.ScrapedHole] = {
+            guard let scraped = webData.scrapedHoles else { return [:] }
+            return Dictionary(uniqueKeysWithValues: scraped.map { ($0.number, $0) })
+        }()
+
         let holes: [GolfHole]
         if let tee {
             holes = tee.holes.enumerated().map { index, h in
@@ -268,27 +285,31 @@ actor GolfAPIService {
                     ?? satPin(forHoleIndex: index)
                     ?? courseCoord
                 let teeCoord = gpsData?.teeCoordinate(forHole: holeNumber) ?? courseCoord
+                // Scraped website data fills in when API tee data has 0-valued fields
+                let webHole = webHoleLookup[holeNumber]
                 return GolfHole(
                     number: holeNumber,
-                    par: h.par,
-                    handicap: h.handicap,
+                    par: h.par > 0 ? h.par : (webHole?.par ?? 4),
+                    handicap: h.handicap > 0 ? h.handicap : (webHole?.handicap ?? holeNumber),
                     teeCoordinate: teeCoord,
                     pinCoordinate: pinCoord,
-                    lengthMeters: h.lengthMeters
+                    lengthMeters: h.lengthMeters > 0 ? h.lengthMeters : (webHole?.lengthMeters ?? 0)
                 )
             }
         } else {
-            // Course has no tee data — generate generic 18-hole scaffold
+            // Course has no tee data — use scraped website data if available,
+            // otherwise fall back to a generic 18-hole scaffold.
             holes = (1...18).map { num in
-                GolfHole(
+                let webHole = webHoleLookup[num]
+                return GolfHole(
                     number: num,
-                    par: 4,
-                    handicap: num,
+                    par: webHole?.par ?? 4,
+                    handicap: webHole?.handicap ?? num,
                     teeCoordinate: gpsData?.teeCoordinate(forHole: num) ?? courseCoord,
                     pinCoordinate: gpsData?.pinCoordinate(forHole: num)
                         ?? satPin(forHoleIndex: num - 1)
                         ?? courseCoord,
-                    lengthMeters: 0
+                    lengthMeters: webHole?.lengthMeters ?? 0
                 )
             }
         }
@@ -302,7 +323,8 @@ actor GolfAPIService {
             country: result.location.country,
             holes: holes,
             osmQuality: finalQuality,
-            gpsSource: gpsData?.dataSource ?? .osm
+            gpsSource: gpsData?.dataSource ?? .osm,
+            overviewImageURLString: webData.overviewImageURL?.absoluteString
         )
     }
 

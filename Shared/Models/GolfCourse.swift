@@ -12,6 +12,14 @@ struct GolfCourse: Identifiable, Codable, Hashable {
     var osmQuality: OSMHoleData.GPSQuality = .none
     /// Which detection method provided the GPS data.
     var gpsSource: OSMHoleData.DataSource = .osm
+    /// URL to the club's Platzuebersicht (course overview) image, if found by
+    /// ClubWebsiteScraper. Stored as a String for Codable compatibility.
+    var overviewImageURLString: String? = nil
+
+    /// Convenience accessor for the overview image URL.
+    var overviewImageURL: URL? {
+        overviewImageURLString.flatMap { URL(string: $0) }
+    }
 }
 
 // MARK: - Codable conformance for GPSQuality

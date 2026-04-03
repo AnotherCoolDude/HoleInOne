@@ -16,6 +16,11 @@ struct RoundSetupView: View {
     @State private var selection: Round.HoleSelection = .all18
     @State private var isFavourite = false
     @State private var mappedPins: Int = 0
+
+    // Course overview image loaded from club website
+    @State private var overviewImage: UIImage?
+    @State private var isLoadingOverview = false
+
     @Environment(\.modelContext) private var modelContext
 
     private var totalHoles: Int { course?.holes.count ?? 18 }
@@ -25,58 +30,62 @@ struct RoundSetupView: View {
     private var displayCountry: String { course?.country ?? preloadCountry }
 
     var body: some View {
-        VStack(spacing: 28) {
+        ScrollView {
+            VStack(spacing: 20) {
 
-            // Header — always visible the moment you navigate here
-            VStack(spacing: 6) {
-                Text(displayName)
-                    .font(.title2.bold())
-                    .multilineTextAlignment(.center)
-                Text("\(displayCity), \(displayCountry)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 24)
+                // Course overview image (Platzuebersicht) — shown when available
+                courseOverviewImage
+                    .padding(.top, overviewImage == nil ? 24 : 0)
 
-            // Status banner — transitions from blue "fetching" → GPS badge
-            statusBanner
-                .padding(.horizontal)
-
-            // Player-recorded GPS progress (always shown once course loaded)
-            if !isLoadingCourse {
-                playerGPSBadge
-                    .padding(.horizontal)
-            }
-
-            // Hole picker
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Holes to play")
-                    .font(.headline)
-                Picker("Holes", selection: $selection) {
-                    ForEach(Round.HoleSelection.allCases, id: \.self) { option in
-                        Text(option.displayName).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            .padding(.horizontal)
-
-            if !isLoadingCourse, course != nil {
-                VStack(spacing: 4) {
-                    Text("\(selection.holeNumbers.count) holes")
-                        .font(.title.bold())
-                    Text("Holes \(selection.holeNumbers.first!)–\(selection.holeNumbers.last!)")
-                        .font(.caption)
+                // Header — always visible the moment you navigate here
+                VStack(spacing: 6) {
+                    Text(displayName)
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                    Text("\(displayCity), \(displayCountry)")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-            }
+                .padding(.top, overviewImage == nil ? 0 : 4)
 
-            Spacer()
+                // Status banner — transitions from blue "fetching" → GPS badge
+                statusBanner
+                    .padding(.horizontal)
 
-            // Start Round button — greyed out while loading
-            startButton
+                // Player-recorded GPS progress (always shown once course loaded)
+                if !isLoadingCourse {
+                    playerGPSBadge
+                        .padding(.horizontal)
+                }
+
+                // Hole picker
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Holes to play")
+                        .font(.headline)
+                    Picker("Holes", selection: $selection) {
+                        ForEach(Round.HoleSelection.allCases, id: \.self) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
                 .padding(.horizontal)
-                .padding(.bottom, 24)
+
+                if !isLoadingCourse, course != nil {
+                    VStack(spacing: 4) {
+                        Text("\(selection.holeNumbers.count) holes")
+                            .font(.title.bold())
+                        Text("Holes \(selection.holeNumbers.first!)–\(selection.holeNumbers.last!)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Start Round button — greyed out while loading
+                startButton
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
+            }
         }
         .navigationTitle("Setup Round")
         .navigationBarTitleDisplayMode(.inline)
@@ -94,7 +103,46 @@ struct RoundSetupView: View {
             isFavourite = SwingHistoryStore(modelContext: modelContext).isFavourite(courseId: courseId)
             mappedPins  = LearnedGPSStore(modelContext: modelContext).mappedPinCount(courseId: courseId)
             await loadCourse()
+            // Load overview image after course is available (URL may come from course or scraper cache)
+            await loadOverviewImage()
         }
+    }
+
+    // MARK: - Course overview image
+
+    @ViewBuilder
+    private var courseOverviewImage: some View {
+        if let image = overviewImage {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 200)
+                .clipped()
+                .overlay(alignment: .bottomLeading) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "map.fill")
+                            .font(.caption2)
+                        Text("Course overview")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(6)
+                    .background(.black.opacity(0.45))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .padding(8)
+                }
+        } else if isLoadingOverview {
+            // Placeholder shimmer while image loads
+            RoundedRectangle(cornerRadius: 0)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 60)
+                .overlay {
+                    ProgressView()
+                        .tint(.secondary)
+                }
+        }
+        // Nothing shown when no overview image is available at all
     }
 
     // MARK: - Status banner
@@ -174,6 +222,28 @@ struct RoundSetupView: View {
             )
         } catch {
             loadError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Overview image loading
+
+    private func loadOverviewImage() async {
+        // Use URL baked into the course model (filled in by ClubWebsiteScraper via toGolfCourse)
+        guard let imageURL = course?.overviewImageURL else { return }
+        isLoadingOverview = true
+        defer { isLoadingOverview = false }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: imageURL)
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode),
+                  let image = UIImage(data: data) else { return }
+            overviewImage = image
+        } catch {
+            // Silently ignore — overview image is decorative, not critical
+            #if DEBUG
+            print("[RoundSetupView] Failed to load overview image: \(error.localizedDescription)")
+            #endif
         }
     }
 
