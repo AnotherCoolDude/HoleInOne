@@ -1,10 +1,39 @@
 [
   {
+    "id": "sierra-star-gc",
+    "name": "Sierra Star Golf Course",
+    "city": "Mammoth Lakes",
+    "state": "CA",
+    "country": "USA",
+    "osmQuality": { "type": "full", "found": 18, "of": 18 },
+    "holes": [
+      { "number": 1,  "par": 4, "handicap": 9,  "teeCoordinate": { "latitude": 37.6385, "longitude": -118.9836 }, "pinCoordinate": { "latitude": 37.6383176, "longitude": -118.9844607 }, "lengthMeters": 338 },
+      { "number": 2,  "par": 3, "handicap": 15, "teeCoordinate": { "latitude": 37.6382, "longitude": -118.9843 }, "pinCoordinate": { "latitude": 37.6374595, "longitude": -118.9855137 }, "lengthMeters": 152 },
+      { "number": 3,  "par": 4, "handicap": 7,  "teeCoordinate": { "latitude": 37.6373, "longitude": -118.9854 }, "pinCoordinate": { "latitude": 37.6392687, "longitude": -118.9848030 }, "lengthMeters": 362 },
+      { "number": 4,  "par": 5, "handicap": 3,  "teeCoordinate": { "latitude": 37.6391, "longitude": -118.9847 }, "pinCoordinate": { "latitude": 37.6418673, "longitude": -118.9857182 }, "lengthMeters": 475 },
+      { "number": 5,  "par": 3, "handicap": 17, "teeCoordinate": { "latitude": 37.6417, "longitude": -118.9856 }, "pinCoordinate": { "latitude": 37.6432928, "longitude": -118.9841094 }, "lengthMeters": 163 },
+      { "number": 6,  "par": 4, "handicap": 11, "teeCoordinate": { "latitude": 37.6431, "longitude": -118.9840 }, "pinCoordinate": { "latitude": 37.6452987, "longitude": -118.9817783 }, "lengthMeters": 348 },
+      { "number": 7,  "par": 4, "handicap": 5,  "teeCoordinate": { "latitude": 37.6451, "longitude": -118.9816 }, "pinCoordinate": { "latitude": 37.6468893, "longitude": -118.9803832 }, "lengthMeters": 332 },
+      { "number": 8,  "par": 4, "handicap": 1,  "teeCoordinate": { "latitude": 37.6467, "longitude": -118.9802 }, "pinCoordinate": { "latitude": 37.6448603, "longitude": -118.9793839 }, "lengthMeters": 395 },
+      { "number": 9,  "par": 4, "handicap": 13, "teeCoordinate": { "latitude": 37.6447, "longitude": -118.9792 }, "pinCoordinate": { "latitude": 37.6445035, "longitude": -118.9788813 }, "lengthMeters": 310 },
+      { "number": 10, "par": 5, "handicap": 2,  "teeCoordinate": { "latitude": 37.6444, "longitude": -118.9787 }, "pinCoordinate": { "latitude": 37.6427629, "longitude": -118.9785635 }, "lengthMeters": 490 },
+      { "number": 11, "par": 4, "handicap": 8,  "teeCoordinate": { "latitude": 37.6426, "longitude": -118.9784 }, "pinCoordinate": { "latitude": 37.6396529, "longitude": -118.9758188 }, "lengthMeters": 380 },
+      { "number": 12, "par": 3, "handicap": 16, "teeCoordinate": { "latitude": 37.6395, "longitude": -118.9757 }, "pinCoordinate": { "latitude": 37.6385619, "longitude": -118.9736816 }, "lengthMeters": 175 },
+      { "number": 13, "par": 4, "handicap": 12, "teeCoordinate": { "latitude": 37.6384, "longitude": -118.9735 }, "pinCoordinate": { "latitude": 37.6377892, "longitude": -118.9757178 }, "lengthMeters": 355 },
+      { "number": 14, "par": 4, "handicap": 4,  "teeCoordinate": { "latitude": 37.6376, "longitude": -118.9756 }, "pinCoordinate": { "latitude": 37.6392649, "longitude": -118.9780964 }, "lengthMeters": 370 },
+      { "number": 15, "par": 5, "handicap": 6,  "teeCoordinate": { "latitude": 37.6391, "longitude": -118.9779 }, "pinCoordinate": { "latitude": 37.6418171, "longitude": -118.9802470 }, "lengthMeters": 462 },
+      { "number": 16, "par": 3, "handicap": 18, "teeCoordinate": { "latitude": 37.6417, "longitude": -118.9801 }, "pinCoordinate": { "latitude": 37.6406440, "longitude": -118.9811610 }, "lengthMeters": 148 },
+      { "number": 17, "par": 4, "handicap": 10, "teeCoordinate": { "latitude": 37.6405, "longitude": -118.9810 }, "pinCoordinate": { "latitude": 37.6375840, "longitude": -118.9829079 }, "lengthMeters": 368 },
+      { "number": 18, "par": 4, "handicap": 14, "teeCoordinate": { "latitude": 37.6374, "longitude": -118.9828 }, "pinCoordinate": { "latitude": 37.6384391, "longitude": -118.9837534 }, "lengthMeters": 342 }
+    ]
+  },
+  {
     "id": "pebble-beach-gl",
     "name": "Pebble Beach Golf Links",
     "city": "Pebble Beach",
     "state": "CA",
     "country": "USA",
+    "osmQuality": { "type": "none", "found": 0, "of": 0 },
     "holes": [
       { "number": 1,  "par": 4, "handicap": 8,  "teeCoordinate": { "latitude": 36.5686, "longitude": -121.9490 }, "pinCoordinate": { "latitude": 36.5693, "longitude": -121.9478 }, "lengthMeters": 349 },
       { "number": 2,  "par": 5, "handicap": 14, "teeCoordinate": { "latitude": 36.5699, "longitude": -121.9474 }, "pinCoordinate": { "latitude": 36.5713, "longitude": -121.9459 }, "lengthMeters": 484 },
@@ -32,6 +61,7 @@
     "city": "St Andrews",
     "state": "Fife",
     "country": "Scotland",
+    "osmQuality": { "type": "none", "found": 0, "of": 0 },
     "holes": [
       { "number": 1,  "par": 4, "handicap": 10, "teeCoordinate": { "latitude": 56.3420, "longitude": -2.8032 }, "pinCoordinate": { "latitude": 56.3430, "longitude": -2.8018 }, "lengthMeters": 343 },
       { "number": 2,  "par": 4, "handicap": 6,  "teeCoordinate": { "latitude": 56.3434, "longitude": -2.8012 }, "pinCoordinate": { "latitude": 56.3446, "longitude": -2.7997 }, "lengthMeters": 411 },

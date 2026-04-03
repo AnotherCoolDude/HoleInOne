@@ -8,7 +8,7 @@ import SwiftData
 @MainActor
 enum MockDataService {
 
-    private static let seededKey = "mock_data_seeded_v3"
+    private static let seededKey = "mock_data_seeded_v4"
 
     static func seedIfNeeded(modelContext: ModelContext) async {
         guard !UserDefaults.standard.bool(forKey: seededKey) else { return }
@@ -28,18 +28,17 @@ enum MockDataService {
     private static func seed(modelContext: ModelContext) async {
         seedProfile()
 
-        let courses = await fetchSampleCourses()
+        // Always start with the fully GPS-mapped bundled course (zero API cost)
+        let bundled = (try? GolfAPIService.shared.loadBundledCourses()) ?? []
+        let sierraStar = bundled.first { $0.id == "sierra-star-gc" }
 
-        if courses.isEmpty {
-            // API unreachable — fall back to bundled course data
-            let bundled = (try? GolfAPIService.shared.loadBundledCourses()) ?? []
-            seedSavedCourses(modelContext: modelContext, courses: bundled)
-            seedRounds(modelContext: modelContext, courses: bundled)
-        } else {
-            seedSavedCourses(modelContext: modelContext, courses: courses)
-            seedRounds(modelContext: modelContext, courses: courses)
-        }
+        // Fetch additional courses from the API (may fail if limit reached)
+        var courses: [GolfCourse] = sierraStar.map { [$0] } ?? []
+        courses += await fetchSampleCourses()
 
+        let finalCourses = courses.isEmpty ? bundled : courses
+        seedSavedCourses(modelContext: modelContext, courses: finalCourses)
+        seedRounds(modelContext: modelContext, courses: finalCourses)
         try? modelContext.save()
     }
 
@@ -49,8 +48,9 @@ enum MockDataService {
         let api = GolfAPIService.shared
         var courses: [GolfCourse] = []
 
-        // Search queries → we keep the first match for each
-        let queries = ["Pebble Beach Golf Links", "Torrey Pines Golf Course", "TPC Sawgrass"]
+        // Search queries → we keep the first match for each.
+        // Sierra Star is bundled so it costs 0 API requests and has verified full GPS coverage.
+        let queries = ["Sierra Star Golf", "Pebble Beach Golf Links", "Torrey Pines Golf Course"]
 
         for query in queries {
             guard courses.count < 3 else { break }
