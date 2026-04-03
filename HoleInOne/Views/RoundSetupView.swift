@@ -92,19 +92,25 @@ struct RoundSetupView: View {
     @ViewBuilder
     private var statusBanner: some View {
         if isLoadingCourse {
-            infoBanner(
-                icon: { AnyView(ProgressView().tint(.blue)) },
-                color: .blue,
-                title: "Fetching hole data…",
-                detail: "Finding hole locations via OpenStreetMap"
-            )
+            bannerRow(color: .blue) {
+                ProgressView().tint(.blue)
+            } title: {
+                Text("Fetching hole data…")
+                    .font(.caption.bold())
+                    .foregroundStyle(.blue)
+            } detail: {
+                Text("Finding hole locations via OpenStreetMap")
+            }
         } else if let error = loadError {
-            infoBanner(
-                icon: { AnyView(Image(systemName: "exclamationmark.triangle").foregroundStyle(.red)) },
-                color: .red,
-                title: "Could not load course",
-                detail: error
-            )
+            bannerRow(color: .red) {
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(.red)
+            } title: {
+                Text("Could not load course")
+                    .font(.caption.bold())
+                    .foregroundStyle(.red)
+            } detail: {
+                Text(error)
+            }
         } else {
             gpsQualityBadge(for: course?.osmQuality ?? .none)
         }
@@ -179,51 +185,55 @@ struct RoundSetupView: View {
     private func gpsQualityBadge(for quality: OSMHoleData.GPSQuality) -> some View {
         switch quality {
         case .full(let n):
-            infoBanner(
-                icon: { AnyView(Image(systemName: "location.fill").foregroundStyle(.green)) },
-                color: .green,
-                title: "GPS: \(n)/\(n) holes via OpenStreetMap",
-                detail: "Pin distances fully available."
-            )
+            bannerRow(color: .green) {
+                Image(systemName: "location.fill").foregroundStyle(.green)
+            } title: {
+                Text("GPS: \(n)/\(n) holes via OpenStreetMap")
+                    .font(.caption.bold()).foregroundStyle(.green)
+            } detail: {
+                Text("Pin distances fully available.")
+            }
         case .partial(let found, let total):
-            infoBanner(
-                icon: { AnyView(Image(systemName: "location").foregroundStyle(.orange)) },
-                color: .orange,
-                title: "GPS: \(found)/\(total) holes via OpenStreetMap",
-                detail: "Pin distances available for \(found) holes. Remaining holes use course centre."
-            )
+            bannerRow(color: .orange) {
+                Image(systemName: "location").foregroundStyle(.orange)
+            } title: {
+                Text("GPS: \(found)/\(total) holes via OpenStreetMap")
+                    .font(.caption.bold()).foregroundStyle(.orange)
+            } detail: {
+                Text("Pin distances available for \(found) holes. Remaining holes use course centre.")
+            }
         case .none:
-            infoBanner(
-                icon: { AnyView(Image(systemName: "location.slash").foregroundStyle(.red)) },
-                color: .red,
-                title: "GPS unavailable",
-                detail: "No hole coordinates found in OpenStreetMap. Par, yardage, and swing tracking still work."
-            )
+            bannerRow(color: .red) {
+                Image(systemName: "location.slash").foregroundStyle(.red)
+            } title: {
+                Text("GPS unavailable")
+                    .font(.caption.bold()).foregroundStyle(.red)
+            } detail: {
+                Text("No hole coordinates found in OpenStreetMap. Par, yardage, and swing tracking still work.")
+            }
         }
     }
 
-    // MARK: - Shared banner layout
+    // MARK: - Shared banner layout (no AnyView — concrete @ViewBuilder parameters only)
 
-    private func infoBanner<Icon: View>(
-        icon: () -> Icon,
+    private func bannerRow<Icon: View, Title: View, Detail: View>(
         color: Color,
-        title: String,
-        detail: String
+        @ViewBuilder icon: () -> Icon,
+        @ViewBuilder title: () -> Title,
+        @ViewBuilder detail: () -> Detail
     ) -> some View {
         HStack(alignment: .top, spacing: 10) {
             icon()
                 .frame(width: 20, height: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption.bold())
-                    .foregroundStyle(color)
-                Text(detail)
+                title()
+                detail()
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            Spacer(minLength: 0)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }
 }
