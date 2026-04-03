@@ -48,6 +48,14 @@ actor CloudGPSService {
 
     // MARK: - Private state
 
+    /// False when the app was built without the iCloud/CloudKit entitlement
+    /// (e.g. Personal Team signing). All public methods return immediately
+    /// without touching CloudKit so there is no crash or log noise.
+    ///
+    /// `CKContainer.default()` is safe to call without entitlements; its
+    /// `containerIdentifier` is nil when no iCloud capability is present.
+    static let isEntitled: Bool = CKContainer.default().containerIdentifier != nil
+
     private var db: CKDatabase { CKContainer(identifier: containerID).publicCloudDatabase }
     private var memoryCache: [String: (data: [CommunityHoleData], at: Date)] = [:]
 
@@ -74,6 +82,7 @@ actor CloudGPSService {
     /// Background re-aggregation is triggered automatically when any aggregate
     /// is stale (> 7 days old) without blocking the return.
     func fetchCommunityGPS(courseId: String) async -> [CommunityHoleData] {
+        guard Self.isEntitled else { return [] }
         // 1. Memory cache (instant)
         if let hit = memoryCache[courseId],
            Date().timeIntervalSince(hit.at) < localCacheTTL {
@@ -114,6 +123,7 @@ actor CloudGPSService {
         coordinate: Coordinate,
         accuracy: Double
     ) async {
+        guard Self.isEntitled else { return }
         await upload(
             courseId: courseId, holeNumber: holeNumber,
             type: .pin, teeColor: nil,
@@ -129,6 +139,7 @@ actor CloudGPSService {
         coordinate: Coordinate,
         accuracy: Double
     ) async {
+        guard Self.isEntitled else { return }
         await upload(
             courseId: courseId, holeNumber: holeNumber,
             type: .tee, teeColor: teeColor,
