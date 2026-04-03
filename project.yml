@@ -47,6 +47,7 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.holeinone.app
       INFOPLIST_FILE: HoleInOne/Info.plist
       CODE_SIGN_ENTITLEMENTS: HoleInOne/HoleInOne.entitlements
+      CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
     dependencies:
       - target: "HoleInOne Watch App"
         embed: true
