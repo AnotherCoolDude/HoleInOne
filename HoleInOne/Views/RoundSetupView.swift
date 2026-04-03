@@ -44,13 +44,46 @@ struct RoundSetupView: View {
                     .padding(.top, overviewImage == nil ? 24 : 0)
 
                 // Header — always visible the moment you navigate here
-                VStack(spacing: 6) {
+                VStack(spacing: 8) {
                     Text(displayName)
                         .font(.title2.bold())
                         .multilineTextAlignment(.center)
                     Text("\(displayCity), \(displayCountry)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                    // Rating + call button on the same row
+                    if placesResult?.rating != nil || placesResult?.phoneNumber != nil {
+                        HStack(spacing: 12) {
+                            if let r = placesResult?.rating {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundStyle(.orange)
+                                    Text(String(format: "%.1f", r))
+                                    if let count = placesResult?.userRatingCount {
+                                        Text("(\(count.formatted()))")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .font(.caption)
+                            }
+                            Spacer()
+                            if let phone = placesResult?.phoneNumber,
+                               let tel   = URL(string: "tel:\(phone.filter { !$0.isWhitespace })") {
+                                Link(destination: tel) {
+                                    Label("Call", systemImage: "phone.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                    }
+
+                    // Opening hours
+                    if let hours = placesResult?.openingHours {
+                        placesOpeningHoursRow(hours)
+                    }
 
                     // Website link from Google Places
                     if let website = placesResult?.website {
@@ -59,6 +92,16 @@ struct RoundSetupView: View {
                                 .font(.caption)
                                 .foregroundStyle(.blue)
                         }
+                    }
+
+                    // Editorial summary
+                    if let summary = placesResult?.editorialSummary {
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(3)
+                            .padding(.top, 2)
                     }
                 }
                 .padding(.top, overviewImage == nil ? 0 : 4)
@@ -500,6 +543,25 @@ struct RoundSetupView: View {
                 .clipShape(Capsule())
                 .padding(10)
         }
+    }
+
+    // MARK: - Opening hours row
+
+    private func placesOpeningHoursRow(_ hours: PlaceOpeningHours) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(hours.openNow == true ? Color.green : Color.red)
+                .frame(width: 7, height: 7)
+            if let openNow = hours.openNow {
+                Text(openNow ? "Open now" : "Closed now")
+                    .foregroundStyle(openNow ? Color.green : Color.red)
+            }
+            if let today = hours.todayDescription {
+                Text("·").foregroundStyle(.secondary)
+                Text(today).foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption)
     }
 
     // MARK: - Google Places data loading
