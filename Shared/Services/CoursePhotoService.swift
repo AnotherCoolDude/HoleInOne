@@ -6,7 +6,8 @@ import Foundation
 //
 // Source priority (highest → lowest quality / relevance):
 //   1. og:image from the club's own website   – club-chosen, always course-specific
-//   2. Wikipedia thumbnail                    – high quality, famous courses only
+//   2. Google Places photo                    – reliable, high-res, worldwide coverage
+//   3. Wikipedia thumbnail                    – high quality, famous courses only
 //
 // The og:image is populated by ClubWebsiteScraper and fed in via
 // `upgradeWithOgImage(_:for:)` when the scraper finishes. Wikipedia is queried
@@ -38,7 +39,8 @@ actor CoursePhotoService {
         courseId: String,
         clubName: String,
         city: String,
-        country: String
+        country: String,
+        coordinate: Coordinate? = nil
     ) async -> URL? {
         // 1. In-memory (instant)
         if let hit = memoryCache[courseId] { return hit }
@@ -49,7 +51,15 @@ actor CoursePhotoService {
             return persisted
         }
 
-        // 3. Wikipedia thumbnail (~300 ms, no API key)
+        // 3. Google Places (reliable worldwide, requires API key)
+        if let coord = coordinate,
+           let placesResult = await GooglePlacesService.shared.searchGolfCourse(name: clubName, near: coord),
+           let photoURL = placesResult.primaryPhotoURL {
+            persist(url: photoURL, courseId: courseId)
+            return photoURL
+        }
+
+        // 4. Wikipedia thumbnail (~300 ms, no API key, famous courses only)
         if let wikiURL = await WikipediaPhotoService.shared.thumbnailURL(
             for: clubName, city: city, country: country
         ) {

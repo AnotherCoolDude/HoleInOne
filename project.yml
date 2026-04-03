@@ -35,8 +35,9 @@ targets:
         # CloudGPSService reads this before touching any CKContainer API.
         HIOCloudKitEnabled: "NO"
         UILaunchScreen: {}
-        # Populate GOLF_API_KEY via Secrets.xcconfig (gitignored)
+        # Populate API keys via Secrets.xcconfig (gitignored)
         GOLF_API_KEY: "$(GOLF_API_KEY)"
+        GOOGLE_PLACES_KEY: "$(GOOGLE_PLACES_KEY)"
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.holeinone.app
       INFOPLIST_FILE: HoleInOne/Info.plist

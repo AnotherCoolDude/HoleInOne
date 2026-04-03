@@ -20,15 +20,9 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>GOLF_API_KEY</key>
-	<string>$(GOLF_API_KEY)</string>
-	<key>GOOGLE_PLACES_KEY</key>
-	<string>$(GOOGLE_PLACES_KEY)</string>
-	<key>HIOCloudKitEnabled</key>
-	<string>NO</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>HoleInOne needs your location to calculate the distance to the pin.</string>
-	<key>UILaunchScreen</key>
-	<dict/>
+	<key>WKApplication</key>
+	<true/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.holeinone.app</string>
 </dict>
 </plist>

@@ -24,6 +24,9 @@ struct RoundSetupView: View {
     @State private var overviewImage: UIImage?
     @State private var isLoadingOverview = false
 
+    // Google Places enrichment
+    @State private var placesResult: GooglePlaceResult?
+
     @Environment(\.modelContext) private var modelContext
 
     private var totalHoles: Int { course?.holes.count ?? 18 }
@@ -48,8 +51,22 @@ struct RoundSetupView: View {
                     Text("\(displayCity), \(displayCountry)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                    // Website link from Google Places
+                    if let website = placesResult?.website {
+                        Link(destination: website) {
+                            Label(website.host ?? "Website", systemImage: "safari")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        }
+                    }
                 }
                 .padding(.top, overviewImage == nil ? 0 : 4)
+
+                // Google Places photo strip (shown when no Platzuebersicht available)
+                if overviewImage == nil, let places = placesResult, !places.photoURLs.isEmpty {
+                    placesPhotoStrip(urls: places.photoURLs)
+                }
 
                 // Status banner — transitions from blue "fetching" → GPS badge
                 statusBanner
@@ -112,8 +129,9 @@ struct RoundSetupView: View {
             isFavourite = SwingHistoryStore(modelContext: modelContext).isFavourite(courseId: courseId)
             mappedPins  = LearnedGPSStore(modelContext: modelContext).mappedPinCount(courseId: courseId)
             await loadCourse()
-            // Load overview image after course is available (URL may come from course or scraper cache)
-            await loadOverviewImage()
+            async let overviewTask: () = loadOverviewImage()
+            async let placesTask:   () = loadPlacesData()
+            _ = await (overviewTask, placesTask)
         }
     }
 
@@ -443,6 +461,58 @@ struct RoundSetupView: View {
                 Text("No hole coordinates found. Walk the course and tap \"Mark Pin\" to build your own GPS data.")
             }
         }
+    }
+
+    // MARK: - Google Places photo strip
+
+    @ViewBuilder
+    private func placesPhotoStrip(urls: [URL]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(urls, id: \.absoluteString) { url in
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable()
+                                .scaledToFill()
+                                .frame(width: 220, height: 140)
+                                .clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        case .failure:
+                            EmptyView()
+                        default:
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.secondary.opacity(0.12))
+                                .frame(width: 220, height: 140)
+                                .overlay { ProgressView() }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Label("Google", systemImage: "g.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(.black.opacity(0.4))
+                .clipShape(Capsule())
+                .padding(10)
+        }
+    }
+
+    // MARK: - Google Places data loading
+
+    private func loadPlacesData() async {
+        guard GooglePlacesService.shared.isConfigured else { return }
+        // Use course coordinate if available, fall back to preload
+        let coord = course?.holes.first?.pinCoordinate ?? preloadCoordinate
+        guard let coord else { return }
+        placesResult = await GooglePlacesService.shared.searchGolfCourse(
+            name: displayName,
+            near: coord
+        )
     }
 
     // MARK: - Shared banner layout (no AnyView — concrete @ViewBuilder parameters only)
