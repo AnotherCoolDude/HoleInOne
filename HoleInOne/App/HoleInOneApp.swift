@@ -5,7 +5,7 @@ import SwiftUI
 struct HoleInOneApp: App {
 
     let container: ModelContainer = {
-        let schema = Schema([RoundResult.self, HoleResult.self, SavedCourse.self])
+        let schema = Schema([RoundResult.self, HoleResult.self, SavedCourse.self, LearnedHoleGPS.self])
         return try! ModelContainer(for: schema)
     }()
 
