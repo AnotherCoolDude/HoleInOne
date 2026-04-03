@@ -46,10 +46,11 @@ struct CourseSearchView: View {
             Section {
                 ForEach(viewModel.favouriteCourses, id: \.courseId) { saved in
                     NavigationLink {
-                        CourseDetailLoader(
+                        RoundSetupView(
                             courseId: saved.courseId,
-                            courseName: saved.courseName,
-                            viewModel: viewModel
+                            preloadName: saved.courseName,
+                            preloadCity: saved.city,
+                            preloadCountry: saved.country
                         )
                     } label: {
                         courseRowContent(
@@ -81,10 +82,11 @@ struct CourseSearchView: View {
             Section("Recently Played") {
                 ForEach(viewModel.recentCourses, id: \.courseId) { saved in
                     NavigationLink {
-                        CourseDetailLoader(
+                        RoundSetupView(
                             courseId: saved.courseId,
-                            courseName: saved.courseName,
-                            viewModel: viewModel
+                            preloadName: saved.courseName,
+                            preloadCity: saved.city,
+                            preloadCountry: saved.country
                         )
                     } label: {
                         courseRowContent(
@@ -159,7 +161,12 @@ struct CourseSearchView: View {
         let fav       = viewModel.isFavourite(courseId: courseId)
 
         return NavigationLink {
-            CourseDetailLoader(courseId: courseId, courseName: name, viewModel: viewModel)
+            RoundSetupView(
+                courseId: courseId,
+                preloadName: name,
+                preloadCity: course.location.city,
+                preloadCountry: course.location.country
+            )
         } label: {
             courseRowContent(name: name, subtitle: subtitle, teeCount: teeCount, isFavourite: fav)
         }
@@ -233,51 +240,3 @@ struct CourseSearchView: View {
     }
 }
 
-// MARK: - Course detail loader
-
-private struct CourseDetailLoader: View {
-    let courseId: String
-    let courseName: String
-    let viewModel: CourseSearchViewModel
-
-    @State private var golfCourse: GolfCourse?
-    @State private var isLoading = true
-    @State private var errorMessage: String?
-
-    var body: some View {
-        Group {
-            if let course = golfCourse {
-                RoundSetupView(course: course)
-            } else if isLoading {
-                VStack(spacing: 12) {
-                    ProgressView()
-                    Text("Loading \(courseName)…")
-                        .font(.subheadline)
-                    Text("Finding hole locations via OpenStreetMap")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = errorMessage {
-                ContentUnavailableView(error, systemImage: "exclamationmark.triangle")
-            }
-        }
-        .task {
-            do {
-                guard let id = Int(courseId) else {
-                    // Bundled course (non-integer String ID)
-                    let courses = try GolfAPIService.shared.loadBundledCourses()
-                    golfCourse = courses.first(where: { $0.id == courseId })
-                    if golfCourse == nil { errorMessage = "Course not found." }
-                    isLoading = false
-                    return
-                }
-                let apiResult = try await GolfAPIService.shared.fetchCourse(id: id)
-                golfCourse = await GolfAPIService.shared.toGolfCourse(apiResult)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            isLoading = false
-        }
-    }
-}
