@@ -140,7 +140,7 @@ struct CourseSearchView: View {
                 description: Text("Try a different name or city.")
             )
         } else {
-            Section("Results for "\(viewModel.query)"") {
+            Section("Results for \"\(viewModel.query)\"") {
                 ForEach(viewModel.searchResults, id: \.id) { course in
                     apiCourseRow(course)
                 }

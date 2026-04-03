@@ -93,7 +93,7 @@ final class CourseSearchViewModel {
         do {
             searchResults = try await api.searchCourses(query: query, maxResults: 40, maxPages: 15)
             if searchResults.isEmpty {
-                errorMessage = "No courses found for "\(query)". Try a city name or partial course name."
+                errorMessage = "No courses found for \"\(query)\". Try a city name or partial course name."
             }
         } catch {
             errorMessage = error.localizedDescription
