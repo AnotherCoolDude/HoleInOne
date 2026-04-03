@@ -31,23 +31,12 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSLocationWhenInUseUsageDescription: "HoleInOne needs your location to calculate the distance to the pin."
-        UIBackgroundModes:
-          - remote-notification
         UILaunchScreen: {}
         # Populate GOLF_API_KEY via Secrets.xcconfig (gitignored)
         GOLF_API_KEY: "$(GOLF_API_KEY)"
-    entitlements:
-      path: HoleInOne/HoleInOne.entitlements
-      properties:
-        com.apple.developer.icloud-container-identifiers:
-          - iCloud.com.holeinone.app
-        com.apple.developer.icloud-services:
-          - CloudKit
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.holeinone.app
       INFOPLIST_FILE: HoleInOne/Info.plist
-      CODE_SIGN_ENTITLEMENTS: HoleInOne/HoleInOne.entitlements
-      CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
     dependencies:
       - target: "HoleInOne Watch App"
         embed: true

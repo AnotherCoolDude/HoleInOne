@@ -24,10 +24,6 @@
 	<string>$(GOLF_API_KEY)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>HoleInOne needs your location to calculate the distance to the pin.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>
