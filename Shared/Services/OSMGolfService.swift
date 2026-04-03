@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 // MARK: - OSMGolfService
@@ -69,6 +70,24 @@ struct OSMHoleData {
     }
 }
 
+// MARK: - Nearby course discovery
+
+/// A golf course found in OpenStreetMap near the user's location.
+/// Used to populate the "Nearby" section without requiring an API key or
+/// a match against the golfcourseapi.com database.
+struct NearbyOSMCourse: Identifiable, Hashable {
+    let id: String          // OSM element id, e.g. "way/123456"
+    let name: String
+    let coordinate: Coordinate
+    var distanceMeters: Double = 0
+
+    var distanceLabel: String {
+        distanceMeters < 1_000
+            ? String(format: "%.0f m", distanceMeters)
+            : String(format: "%.1f km", distanceMeters / 1_000)
+    }
+}
+
 // MARK: - Service
 
 actor OSMGolfService {
@@ -79,6 +98,77 @@ actor OSMGolfService {
     private let cacheTTLSeconds: TimeInterval = 30 * 24 * 60 * 60  // 30 days
 
     private init() {}
+
+    // MARK: - Nearby course discovery
+
+    /// Returns golf courses within `radiusKm` kilometres of `location`,
+    /// sorted by distance, capped at `limit`.
+    ///
+    /// Uses the Overpass `around` filter which is fast even for large radii.
+    /// Results are not cached — the caller should debounce as needed.
+    func nearbyGolfCourses(
+        location: Coordinate,
+        radiusKm: Double = 25,
+        limit: Int = 10
+    ) async -> [NearbyOSMCourse] {
+        let radiusM = Int(radiusKm * 1_000)
+        // Query ways, nodes and relations tagged leisure=golf_course within radius.
+        // `out center` returns a single representative point for each element.
+        let query = """
+        [out:json][timeout:20];
+        (
+          way(around:\(radiusM),\(location.latitude),\(location.longitude))[leisure=golf_course];
+          node(around:\(radiusM),\(location.latitude),\(location.longitude))[leisure=golf_course];
+          relation(around:\(radiusM),\(location.latitude),\(location.longitude))[leisure=golf_course];
+        );
+        out center tags;
+        """
+
+        guard let data = try? await overpassQuery(query),
+              let json  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let elements = json["elements"] as? [[String: Any]] else {
+            return []
+        }
+
+        let userLoc = CLLocation(latitude: location.latitude, longitude: location.longitude)
+
+        var courses: [NearbyOSMCourse] = []
+        for element in elements {
+            // Resolve centre coordinate (ways/relations expose a "center" sub-dict)
+            let lat: Double
+            let lon: Double
+            if let centre = element["center"] as? [String: Double],
+               let clat = centre["lat"], let clon = centre["lon"] {
+                lat = clat; lon = clon
+            } else if let elat = element["lat"] as? Double,
+                      let elon = element["lon"] as? Double {
+                lat = elat; lon = elon
+            } else {
+                continue
+            }
+
+            let tags = element["tags"] as? [String: String] ?? [:]
+            let name = tags["name"] ?? tags["name:en"] ?? "Golf Course"
+
+            let osmType = element["type"] as? String ?? "node"
+            let osmId   = element["id"]   as? Int    ?? 0
+            let id      = "\(osmType)/\(osmId)"
+
+            let courseLoc = CLLocation(latitude: lat, longitude: lon)
+            var course = NearbyOSMCourse(
+                id: id,
+                name: name,
+                coordinate: Coordinate(latitude: lat, longitude: lon)
+            )
+            course.distanceMeters = userLoc.distance(from: courseLoc)
+            courses.append(course)
+        }
+
+        return courses
+            .sorted { $0.distanceMeters < $1.distanceMeters }
+            .prefix(limit)
+            .map { $0 }
+    }
 
     // MARK: - Main entry point
 

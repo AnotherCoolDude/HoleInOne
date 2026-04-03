@@ -9,7 +9,7 @@ final class CourseSearchViewModel {
     var query: String = ""
     var searchResults: [CourseAPIResult] = []
     var browseResults: [CourseAPIResult] = []
-    var nearbyCourses: [CourseAPIResult] = []
+    var nearbyCourses: [NearbyOSMCourse] = []
     var isLoading: Bool = false
     var isLoadingMore: Bool = false
     var isLoadingNearby: Bool = false
@@ -25,7 +25,6 @@ final class CourseSearchViewModel {
 
     private let api = GolfAPIService.shared
     private var searchTask: Task<Void, Never>?
-    private var nearbyUserLocation: CLLocation?
     private var nearbyLoadedFor: CLLocation?   // avoid re-fetching for same area
 
     // MARK: - Search
@@ -79,54 +78,19 @@ final class CourseSearchViewModel {
     /// Searches for up to 10 courses near `location`, using reverse geocoding
     /// to narrow the API results to the local city (or country as fallback)
     /// before sorting by distance and truncating.
+    /// Queries OpenStreetMap (via Overpass API) for golf courses within 25 km.
+    /// OSM has global coverage and works well in Germany and all of Europe.
     func loadNearbyCourses(from location: CLLocation) async {
         // Skip if we already loaded for a point within 5 km of this one
         if let prev = nearbyLoadedFor, location.distance(from: prev) < 5_000 { return }
         guard !isLoadingNearby else { return }
-        nearbyUserLocation = location
         isLoadingNearby = true
         defer { isLoadingNearby = false }
 
-        // Force English locale so the API's English-named dataset matches
-        // regardless of the device language (e.g. "Munich" not "München")
-        let geocoder = CLGeocoder()
-        let english  = Locale(identifier: "en_US")
-        let placemarks = try? await geocoder.reverseGeocodeLocation(location, preferredLocale: english)
-        let city    = placemarks?.first?.locality ?? ""
-        let country = placemarks?.first?.country  ?? ""
-
-        // Try city first; fall back to country if city yields nothing
-        var candidates = city.isEmpty ? [] :
-            (try? await api.searchCourses(query: city,    maxResults: 60, maxPages: 5)) ?? []
-        if candidates.isEmpty && !country.isEmpty {
-            candidates = (try? await api.searchCourses(query: country, maxResults: 60, maxPages: 10)) ?? []
-        }
-        guard !candidates.isEmpty else { return }
-
-        // Sort by crow-flies distance; drop courses with no coordinates
-        let sorted = candidates
-            .filter { $0.location.latitude != 0 || $0.location.longitude != 0 }
-            .sorted {
-                let a = CLLocation(latitude: $0.location.latitude, longitude: $0.location.longitude)
-                let b = CLLocation(latitude: $1.location.latitude, longitude: $1.location.longitude)
-                return location.distance(from: a) < location.distance(from: b)
-            }
-
-        nearbyCourses   = Array(sorted.prefix(10))
+        let coord = Coordinate(latitude: location.coordinate.latitude,
+                               longitude: location.coordinate.longitude)
+        nearbyCourses   = await OSMGolfService.shared.nearbyGolfCourses(location: coord)
         nearbyLoadedFor = location
-    }
-
-    /// Formatted distance string from the last known user location to a course.
-    func distanceLabel(to course: CourseAPIResult) -> String? {
-        guard let userLoc = nearbyUserLocation,
-              course.location.latitude != 0 || course.location.longitude != 0 else { return nil }
-        let courseLoc = CLLocation(latitude: course.location.latitude, longitude: course.location.longitude)
-        let metres = userLoc.distance(from: courseLoc)
-        if metres < 1_000 {
-            return String(format: "%.0f m", metres)
-        } else {
-            return String(format: "%.1f km", metres / 1_000)
-        }
     }
 
     // MARK: - Convert to playable GolfCourse

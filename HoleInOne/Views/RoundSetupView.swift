@@ -7,6 +7,9 @@ struct RoundSetupView: View {
     let preloadName: String
     let preloadCity: String
     let preloadCountry: String
+    /// Coordinate hint supplied by OSM nearby search — used when the course
+    /// isn't in the golfcourseapi.com database.
+    var preloadCoordinate: Coordinate? = nil
 
     // Loaded asynchronously in the background
     @State private var course: GolfCourse?
@@ -220,6 +223,13 @@ struct RoundSetupView: View {
     private func loadCourse() async {
         isLoadingCourse = true
         defer { isLoadingCourse = false }
+
+        // OSM nearby course — try API name search first, build from OSM data if not found
+        if courseId.hasPrefix("osm-") {
+            await loadOSMCourse()
+            return
+        }
+
         do {
             guard let id = Int(courseId) else {
                 // Bundled course (non-integer String ID)
@@ -238,6 +248,52 @@ struct RoundSetupView: View {
         } catch {
             loadError = error.localizedDescription
         }
+    }
+
+    /// Loads an OSM-discovered course: searches the API by name first,
+    /// falls back to building a GPS-only course from the OSM coordinate.
+    private func loadOSMCourse() async {
+        let profile = PlayerProfile.shared
+
+        // 1. Try to match by name in the golf API
+        if let apiMatches = try? await GolfAPIService.shared.searchCourses(
+            query: preloadName, maxResults: 5, maxPages: 3
+        ), let best = apiMatches.first {
+            if let detail = try? await GolfAPIService.shared.fetchCourse(id: best.id) {
+                course = await GolfAPIService.shared.toGolfCourse(
+                    detail,
+                    teeGender: profile.teeGender.rawValue,
+                    preferredTeeName: profile.preferredTeeName
+                )
+                return
+            }
+        }
+
+        // 2. API has no match — build a minimal playable course from OSM hole data
+        guard let coord = preloadCoordinate else {
+            loadError = "Course not found in database. Open the search to find it manually."
+            return
+        }
+        let osmData = try? await OSMGolfService.shared.fetchHoleCoordinates(
+            courseId: courseId,
+            courseName: preloadName,
+            location: coord,
+            expectedHoles: 18
+        )
+        let holeCount = max(osmData?.holes.count ?? 0, 18)
+        let holes: [GolfHole] = (1...holeCount).map { i in
+            let pin = osmData?.holes.first(where: { $0.holeNumber == i })?.pinCoordinate ?? coord
+            let tee = osmData?.holes.first(where: { $0.holeNumber == i })?.teeCoordinate ?? coord
+            return GolfHole(number: i, par: 4, handicap: i,
+                            teeCoordinate: tee, pinCoordinate: pin, lengthMeters: 150)
+        }
+        course = GolfCourse(
+            id: courseId, name: preloadName,
+            city: preloadCity, state: "", country: preloadCountry,
+            holes: holes,
+            osmQuality: osmData?.quality ?? .none,
+            gpsSource: .osm
+        )
     }
 
     // MARK: - Overview image loading

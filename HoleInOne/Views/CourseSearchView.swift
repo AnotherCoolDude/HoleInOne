@@ -135,7 +135,7 @@ struct CourseSearchView: View {
                 }
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(viewModel.nearbyCourses, id: \.id) { course in
+                ForEach(viewModel.nearbyCourses) { course in
                     nearbyCourseRow(course)
                 }
             }
@@ -145,40 +145,33 @@ struct CourseSearchView: View {
         }
     }
 
-    private func nearbyCourseRow(_ course: CourseAPIResult) -> some View {
-        let courseId = String(course.id)
-        let name     = course.courseName.isEmpty ? course.clubName : course.courseName
-        let dist     = viewModel.distanceLabel(to: course)
-        let subtitle = ([dist, course.location.city, course.location.country] as [String?])
-            .compactMap { $0.flatMap { $0.isEmpty ? nil : $0 } }
-            .joined(separator: " · ")
-        let fav = viewModel.isFavourite(courseId: courseId)
-
-        return NavigationLink {
+    private func nearbyCourseRow(_ course: NearbyOSMCourse) -> some View {
+        NavigationLink {
             RoundSetupView(
-                courseId: courseId,
-                preloadName: name,
-                preloadCity: course.location.city,
-                preloadCountry: course.location.country
+                courseId: "osm-\(course.id)",
+                preloadName: course.name,
+                preloadCity: "",
+                preloadCountry: "",
+                preloadCoordinate: course.coordinate
             )
         } label: {
-            courseRowContent(
-                courseId: courseId,
-                clubName: course.clubName,
-                city: course.location.city,
-                country: course.location.country,
-                name: name,
-                subtitle: subtitle,
-                teeCount: course.tees.male.count + course.tees.female.count,
-                isFavourite: fav
-            )
-        }
-        .swipeActions(edge: .trailing) {
-            favouriteSwipeButton(
-                courseId: courseId, courseName: name,
-                city: course.location.city, country: course.location.country,
-                isCurrent: fav
-            )
+            HStack(spacing: 10) {
+                CoursePhotoView(
+                    courseId: "osm-\(course.id)",
+                    clubName: course.name,
+                    city: "",
+                    country: "",
+                    size: .thumbnail(side: 52)
+                )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(course.name).font(.body)
+                    Text(course.distanceLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 2)
         }
     }
 
