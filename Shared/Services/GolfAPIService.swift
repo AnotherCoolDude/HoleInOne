@@ -324,7 +324,9 @@ actor GolfAPIService {
             holes: holes,
             osmQuality: finalQuality,
             gpsSource: gpsData?.dataSource ?? .osm,
-            overviewImageURLString: webData.overviewImageURL?.absoluteString
+            overviewImageURLString: webData.overviewImageURL?.absoluteString,
+            courseRating: tee?.courseRating ?? 72.0,
+            slopeRating: tee?.slopeRating ?? 113
         )
     }
 

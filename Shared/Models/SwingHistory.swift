@@ -9,12 +9,29 @@ final class RoundResult {
     var holeSelection: String
     @Relationship(deleteRule: .cascade) var holeResults: [HoleResult]
 
-    init(courseId: String, courseName: String, date: Date, holeSelection: String, holeResults: [HoleResult] = []) {
-        self.courseId = courseId
-        self.courseName = courseName
-        self.date = date
+    /// WHS Course Rating for the tee played (stored at round start).
+    /// Defaults to 72.0 for rounds recorded before this field was added.
+    var courseRating: Double = 72.0
+    /// WHS Slope Rating for the tee played (stored at round start).
+    /// Defaults to 113 (standard) for rounds recorded before this field was added.
+    var slopeRating: Int = 113
+
+    init(
+        courseId: String,
+        courseName: String,
+        date: Date,
+        holeSelection: String,
+        holeResults: [HoleResult] = [],
+        courseRating: Double = 72.0,
+        slopeRating: Int = 113
+    ) {
+        self.courseId     = courseId
+        self.courseName   = courseName
+        self.date         = date
         self.holeSelection = holeSelection
-        self.holeResults = holeResults
+        self.holeResults  = holeResults
+        self.courseRating = courseRating
+        self.slopeRating  = slopeRating
     }
 
     var totalStrokes: Int {

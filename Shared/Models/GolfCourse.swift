@@ -12,6 +12,10 @@ struct GolfCourse: Identifiable, Codable, Hashable {
     var osmQuality: OSMHoleData.GPSQuality = .none
     /// Which detection method provided the GPS data.
     var gpsSource: OSMHoleData.DataSource = .osm
+    /// WHS course rating for the selected tee (scratch score, e.g. 71.4).
+    var courseRating: Double = 72.0
+    /// WHS slope rating for the selected tee (difficulty vs scratch, typically 55–155, standard = 113).
+    var slopeRating: Int = 113
     /// URL to the club's Platzuebersicht (course overview) image, if found by
     /// ClubWebsiteScraper. Stored as a String for Codable compatibility.
     var overviewImageURLString: String? = nil

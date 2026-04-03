@@ -16,7 +16,9 @@ final class SwingHistoryStore {
             courseId: course.id,
             courseName: course.name,
             date: .now,
-            holeSelection: selection.rawValue
+            holeSelection: selection.rawValue,
+            courseRating: course.courseRating,
+            slopeRating: course.slopeRating
         )
         modelContext.insert(round)
         saveRecentCourse(course)
