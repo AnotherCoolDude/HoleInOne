@@ -54,6 +54,10 @@ struct CourseSearchView: View {
                         )
                     } label: {
                         courseRowContent(
+                            courseId: saved.courseId,
+                            clubName: saved.courseName,
+                            city: saved.city,
+                            country: saved.country,
                             name: saved.courseName,
                             subtitle: "\(saved.city), \(saved.country)"
                         )
@@ -90,6 +94,10 @@ struct CourseSearchView: View {
                         )
                     } label: {
                         courseRowContent(
+                            courseId: saved.courseId,
+                            clubName: saved.courseName,
+                            city: saved.city,
+                            country: saved.country,
                             name: saved.courseName,
                             subtitle: "\(saved.city), \(saved.country)",
                             isFavourite: saved.isFavourite
@@ -168,7 +176,16 @@ struct CourseSearchView: View {
                 preloadCountry: course.location.country
             )
         } label: {
-            courseRowContent(name: name, subtitle: subtitle, teeCount: teeCount, isFavourite: fav)
+            courseRowContent(
+                courseId: courseId,
+                clubName: course.clubName,
+                city: course.location.city,
+                country: course.location.country,
+                name: name,
+                subtitle: subtitle,
+                teeCount: teeCount,
+                isFavourite: fav
+            )
         }
         .swipeActions(edge: .trailing) {
             favouriteSwipeButton(
@@ -180,12 +197,27 @@ struct CourseSearchView: View {
     }
 
     private func courseRowContent(
+        courseId: String = "",
+        clubName: String = "",
+        city: String = "",
+        country: String = "",
         name: String,
         subtitle: String,
         teeCount: Int = 0,
         isFavourite: Bool = false
     ) -> some View {
         HStack(spacing: 10) {
+            // Thumbnail photo — shown when courseId is available
+            if !courseId.isEmpty {
+                CoursePhotoView(
+                    courseId: courseId,
+                    clubName: clubName,
+                    city: city,
+                    country: country,
+                    size: .thumbnail(side: 52)
+                )
+            }
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(name).font(.body)
                 HStack(spacing: 6) {

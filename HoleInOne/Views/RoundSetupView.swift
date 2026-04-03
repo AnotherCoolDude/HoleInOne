@@ -142,7 +142,16 @@ struct RoundSetupView: View {
                         .tint(.secondary)
                 }
         }
-        // Nothing shown when no overview image is available at all
+        // Fallback: club photo from Wikipedia / og:image when no Platzuebersicht found
+        if overviewImage == nil && !isLoadingOverview {
+            CoursePhotoView(
+                courseId: courseId,
+                clubName: preloadName,
+                city: preloadCity,
+                country: preloadCountry,
+                size: .banner(height: 200)
+            )
+        }
     }
 
     // MARK: - Status banner

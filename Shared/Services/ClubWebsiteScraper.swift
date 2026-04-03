@@ -31,6 +31,10 @@ struct ClubWebData {
     /// The club's main website URL.
     let websiteURL: URL?
 
+    /// og:image meta tag from the club's homepage — the image the club chose to
+    /// represent itself on social media. High quality, club-specific.
+    let clubPhotoURL: URL?
+
     /// Platzuebersicht / course overview image.
     let overviewImageURL: URL?
 
@@ -43,7 +47,8 @@ struct ClubWebData {
 
     /// True when at least one useful piece of data was found.
     var hasData: Bool {
-        overviewImageURL != nil || !holeImageURLs.isEmpty || scrapedHoles != nil
+        clubPhotoURL != nil || overviewImageURL != nil
+            || !holeImageURLs.isEmpty || scrapedHoles != nil
     }
 
     struct ScrapedHole {
@@ -68,7 +73,8 @@ actor ClubWebsiteScraper {
 
     // MARK: - Public entry point
 
-    /// Scrapes the golf club's website for hole imagery and scorecard data.
+    /// Scrapes the golf club's website for hole imagery, scorecard data, and
+    /// the og:image photo used to represent the club on social media.
     /// Returns a cached result if one exists and is still fresh.
     func scrape(courseId: String, clubName: String, city: String) async -> ClubWebData {
         // Cache check
@@ -78,22 +84,30 @@ actor ClubWebsiteScraper {
         let websiteURL = await findWebsite(clubName: clubName, city: city)
 
         guard let siteURL = websiteURL else {
-            let empty = ClubWebData(websiteURL: nil, overviewImageURL: nil,
-                                    holeImageURLs: [:], scrapedHoles: nil)
+            let empty = ClubWebData(websiteURL: nil, clubPhotoURL: nil,
+                                    overviewImageURL: nil, holeImageURLs: [:], scrapedHoles: nil)
             saveCache(courseId: courseId, data: empty, ttl: failureCacheTTL)
             return empty
         }
 
-        // 2. Scrape the site
+        // 2. Scrape the site (homepage + scorecard sub-pages)
         let result = await scrapeSite(baseURL: siteURL)
         let data = ClubWebData(
             websiteURL: siteURL,
+            clubPhotoURL: result.clubPhotoURL,
             overviewImageURL: result.overviewURL,
             holeImageURLs: result.holeImages,
             scrapedHoles: result.holes
         )
         saveCache(courseId: courseId, data: data,
                   ttl: data.hasData ? cacheTTL : failureCacheTTL)
+
+        // 3. Forward the og:image to CoursePhotoService — it always wins over
+        //    Wikipedia because it's the club's own chosen image.
+        if let ogPhoto = result.clubPhotoURL {
+            await CoursePhotoService.shared.upgradeWithOgImage(ogPhoto, for: courseId)
+        }
+
         return data
     }
 
@@ -167,6 +181,7 @@ actor ClubWebsiteScraper {
     // MARK: - Step 2: scrape the club site
 
     private struct ScrapeResult {
+        var clubPhotoURL: URL?
         var overviewURL: URL?
         var holeImages: [Int: URL] = [:]
         var holes: [ClubWebData.ScrapedHole]?
@@ -181,6 +196,9 @@ actor ClubWebsiteScraper {
         let isTypo3 = homeHTML.contains("tx_gkmbcoursetable")
             || homeHTML.contains("/fileadmin/")
             || homeHTML.lowercased().contains("typo3")
+
+        // Extract og:image — the image the club uses to represent itself on social media
+        result.clubPhotoURL = findOgImage(in: homeHTML, baseURL: baseURL)
 
         // Look for Platzuebersicht image on homepage first
         result.overviewURL = findOverviewImage(in: homeHTML, baseURL: baseURL)
@@ -223,6 +241,42 @@ actor ClubWebsiteScraper {
         }
 
         return result
+    }
+
+    // MARK: - Platzuebersicht image detection
+
+    // MARK: - og:image extraction
+
+    /// Extracts the `og:image` meta tag from an HTML page.
+    ///
+    /// Handles both formats:
+    ///   <meta property="og:image" content="URL">
+    ///   <meta name="og:image" content="URL">
+    private func findOgImage(in html: String, baseURL: URL) -> URL? {
+        var searchRange = html.startIndex..<html.endIndex
+        while let metaRange = html.range(of: "<meta ", options: .caseInsensitive, range: searchRange) {
+            guard let closeRange = html.range(of: ">", range: metaRange.upperBound..<html.endIndex) else {
+                break
+            }
+            let tag = String(html[metaRange.lowerBound..<closeRange.upperBound])
+            let tagLower = tag.lowercased()
+
+            // Match og:image in property= or name= attribute
+            if tagLower.contains("og:image") || tagLower.contains("og: image") {
+                if let content = extractAttribute("content", from: tag),
+                   !content.isEmpty,
+                   let url = resolveURL(content, relativeTo: baseURL) {
+                    // Skip tiny pixel trackers and SVG icons
+                    let path = url.path.lowercased()
+                    if !path.hasSuffix(".svg") && !path.contains("pixel")
+                        && !path.contains("tracker") {
+                        return url
+                    }
+                }
+            }
+            searchRange = closeRange.upperBound..<html.endIndex
+        }
+        return nil
     }
 
     // MARK: - Platzuebersicht image detection
@@ -478,6 +532,7 @@ actor ClubWebsiteScraper {
 
     private struct CacheEntry: Codable {
         let websiteURL: String?
+        let clubPhotoURL: String?
         let overviewImageURL: String?
         let holeImageURLs: [String: String]  // "1" … "18" → URL string
         struct CachedHole: Codable {
@@ -499,6 +554,7 @@ actor ClubWebsiteScraper {
               Date().timeIntervalSince(entry.timestamp) < entry.ttl else { return nil }
 
         let websiteURL    = entry.websiteURL.flatMap { URL(string: $0) }
+        let clubPhotoURL  = entry.clubPhotoURL.flatMap { URL(string: $0) }
         let overviewURL   = entry.overviewImageURL.flatMap { URL(string: $0) }
         let holeImages    = Dictionary(uniqueKeysWithValues:
             entry.holeImageURLs.compactMap { k, v -> (Int, URL)? in
@@ -510,7 +566,8 @@ actor ClubWebsiteScraper {
             ClubWebData.ScrapedHole(number: $0.number, par: $0.par,
                                     handicap: $0.handicap, lengthMeters: $0.lengthMeters)
         }
-        return ClubWebData(websiteURL: websiteURL, overviewImageURL: overviewURL,
+        return ClubWebData(websiteURL: websiteURL, clubPhotoURL: clubPhotoURL,
+                           overviewImageURL: overviewURL,
                            holeImageURLs: holeImages, scrapedHoles: holes)
     }
 
@@ -524,6 +581,7 @@ actor ClubWebsiteScraper {
         }
         let entry = CacheEntry(
             websiteURL: data.websiteURL?.absoluteString,
+            clubPhotoURL: data.clubPhotoURL?.absoluteString,
             overviewImageURL: data.overviewImageURL?.absoluteString,
             holeImageURLs: holeImages,
             scrapedHoles: holes,
