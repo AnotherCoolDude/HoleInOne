@@ -65,12 +65,25 @@ final class SavedCourse {
     var city: String
     var country: String
     var lastPlayed: Date
+    /// Whether the player has starred this course as a favourite.
+    var isFavourite: Bool
 
-    init(from course: GolfCourse, date: Date = .now) {
-        self.courseId = course.id
-        self.courseName = course.name
-        self.city = course.city
-        self.country = course.country
-        self.lastPlayed = date
+    init(from course: GolfCourse, date: Date = .now, isFavourite: Bool = false) {
+        self.courseId    = course.id
+        self.courseName  = course.name
+        self.city        = course.city
+        self.country     = course.country
+        self.lastPlayed  = date
+        self.isFavourite = isFavourite
+    }
+
+    /// Lightweight init used when adding a favourite that has never been played.
+    init(courseId: String, courseName: String, city: String, country: String, isFavourite: Bool = true) {
+        self.courseId    = courseId
+        self.courseName  = courseName
+        self.city        = city
+        self.country     = country
+        self.lastPlayed  = .distantPast   // not played yet
+        self.isFavourite = isFavourite
     }
 }

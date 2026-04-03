@@ -172,14 +172,31 @@ actor GolfAPIService {
     /// instant. If OSM has no data for the course, all holes fall back to the
     /// course's own lat/lon as a placeholder.
     ///
-    /// - Parameter teeGender: "male" or "female"; falls back to whichever is available.
-    func toGolfCourse(_ result: CourseAPIResult, teeGender: String = "male") async -> GolfCourse {
+    /// - Parameters:
+    ///   - teeGender:        "male" or "female"; falls back to whichever is available.
+    ///   - preferredTeeName: Optional tee colour (e.g. "Blue"). When non-empty the method
+    ///                       tries to match by name before falling back to the first tee.
+    func toGolfCourse(
+        _ result: CourseAPIResult,
+        teeGender: String = "male",
+        preferredTeeName: String = ""
+    ) async -> GolfCourse {
         let courseId    = "\(result.id)"
         let courseCoord = result.location.coordinate
 
-        let tee: CourseTeeOption? = teeGender == "female"
-            ? (result.tees.female.first ?? result.tees.male.first)
-            : (result.tees.male.first ?? result.tees.female.first)
+        // Pick the candidate pool based on tee gender, then try to match the
+        // preferred tee name (case-insensitive prefix / containment match).
+        let pool: [CourseTeeOption] = teeGender == "female"
+            ? (result.tees.female.isEmpty ? result.tees.male : result.tees.female)
+            : (result.tees.male.isEmpty   ? result.tees.female : result.tees.male)
+
+        let tee: CourseTeeOption? = {
+            guard !preferredTeeName.trimmingCharacters(in: .whitespaces).isEmpty else {
+                return pool.first
+            }
+            let pref = preferredTeeName.lowercased()
+            return pool.first { $0.teeName.lowercased().contains(pref) } ?? pool.first
+        }()
 
         let expectedHoles = tee?.numberOfHoles ?? 18
 

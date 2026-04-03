@@ -12,6 +12,7 @@ final class CourseSearchViewModel {
     var isLoadingMore: Bool = false
     var errorMessage: String?
     var recentCourses: [SavedCourse] = []
+    var favouriteCourses: [SavedCourse] = []
 
     // Pagination state for browse mode
     var currentPage: Int = 1
@@ -58,15 +59,29 @@ final class CourseSearchViewModel {
         recentCourses = store.fetchRecentCourses()
     }
 
+    // MARK: - Favourites
+
+    func loadFavourites(store: SwingHistoryStore) {
+        favouriteCourses = store.fetchFavourites()
+    }
+
+    func isFavourite(courseId: String) -> Bool {
+        favouriteCourses.contains { $0.courseId == courseId }
+    }
+
     // MARK: - Convert to playable GolfCourse
 
-    /// Converts a search/browse result into a GolfCourse for round setup.
-    /// NOTE: per-hole GPS is unavailable from this API; pin coordinates will
-    /// use the course's own lat/lon as a placeholder.
+    /// Converts a search/browse result into a GolfCourse for round setup,
+    /// using the player's tee gender and preferred tee name from PlayerProfile.
     func toGolfCourse(_ result: CourseAPIResult) async throws -> GolfCourse {
         // Fetch full detail (browse results may lack tee data)
         let detail = try await api.fetchCourse(id: result.id)
-        return await api.toGolfCourse(detail)
+        let profile = PlayerProfile.shared
+        return await api.toGolfCourse(
+            detail,
+            teeGender: profile.teeGender.rawValue,
+            preferredTeeName: profile.preferredTeeName
+        )
     }
 
     // MARK: - Private

@@ -1,8 +1,12 @@
+import SwiftData
 import SwiftUI
 
 struct RoundSetupView: View {
     let course: GolfCourse
     @State private var selection: Round.HoleSelection = .all18
+    @State private var isFavourite: Bool = false
+
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         VStack(spacing: 28) {
@@ -56,6 +60,32 @@ struct RoundSetupView: View {
         }
         .navigationTitle("Setup Round")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    toggleFavourite()
+                } label: {
+                    Image(systemName: isFavourite ? "heart.fill" : "heart")
+                        .foregroundStyle(isFavourite ? .red : .primary)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .accessibilityLabel(isFavourite ? "Remove from favourites" : "Add to favourites")
+            }
+        }
+        .task {
+            isFavourite = SwingHistoryStore(modelContext: modelContext).isFavourite(courseId: course.id)
+        }
+    }
+
+    private func toggleFavourite() {
+        let store = SwingHistoryStore(modelContext: modelContext)
+        let components = course.city.isEmpty ? ("", course.country) : (course.city, course.country)
+        isFavourite = store.toggleFavourite(
+            courseId: course.id,
+            courseName: course.name,
+            city: components.0,
+            country: components.1
+        )
     }
 
     // MARK: - GPS quality badge
