@@ -251,7 +251,7 @@ actor GolfAPIService {
     // MARK: - Bundled fallback (offline / development)
 
     /// Loads the bundled `sample_courses.json`. Used when the API is unreachable.
-    func loadBundledCourses() throws -> [GolfCourse] {
+    nonisolated func loadBundledCourses() throws -> [GolfCourse] {
         guard let url = Bundle.main.url(forResource: "sample_courses", withExtension: "json") else {
             throw GolfCourseAPIError.bundleFileNotFound
         }
