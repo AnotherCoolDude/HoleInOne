@@ -13,9 +13,6 @@ struct SettingsView: View {
         )
     }
 
-    // Two-way bindable access to the @Observable profile
-    @Bindable private var bindableProfile: PlayerProfile { profile }
-
     var body: some View {
         Form {
 
