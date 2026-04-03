@@ -22,6 +22,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>GOLF_API_KEY</key>
 	<string>$(GOLF_API_KEY)</string>
+	<key>HIOCloudKitEnabled</key>
+	<string>NO</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>HoleInOne needs your location to calculate the distance to the pin.</string>
 	<key>UILaunchScreen</key>

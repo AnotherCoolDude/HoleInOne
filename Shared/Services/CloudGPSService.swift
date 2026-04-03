@@ -50,11 +50,12 @@ actor CloudGPSService {
 
     /// False when the app was built without the iCloud/CloudKit entitlement
     /// (e.g. Personal Team signing). All public methods return immediately
-    /// without touching CloudKit so there is no crash or log noise.
+    /// without touching any CKContainer API so there is no crash or log noise.
     ///
-    /// `CKContainer.default()` is safe to call without entitlements; its
-    /// `containerIdentifier` is nil when no iCloud capability is present.
-    static let isEntitled: Bool = CKContainer.default().containerIdentifier != nil
+    /// Controlled via the `HIOCloudKitEnabled` key in Info.plist — set to "YES"
+    /// only when the CloudKit entitlement is present (paid Developer account).
+    static let isEntitled: Bool =
+        Bundle.main.object(forInfoDictionaryKey: "HIOCloudKitEnabled") as? String == "YES"
 
     private var db: CKDatabase { CKContainer(identifier: containerID).publicCloudDatabase }
     private var memoryCache: [String: (data: [CommunityHoleData], at: Date)] = [:]

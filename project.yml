@@ -31,6 +31,9 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSLocationWhenInUseUsageDescription: "HoleInOne needs your location to calculate the distance to the pin."
+        # Set to YES when CloudKit entitlements are active (paid Developer account).
+        # CloudGPSService reads this before touching any CKContainer API.
+        HIOCloudKitEnabled: "NO"
         UILaunchScreen: {}
         # Populate GOLF_API_KEY via Secrets.xcconfig (gitignored)
         GOLF_API_KEY: "$(GOLF_API_KEY)"
