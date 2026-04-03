@@ -1,8 +1,10 @@
+import CoreLocation
 import SwiftData
 import SwiftUI
 
 struct CourseSearchView: View {
     @State private var viewModel = CourseSearchViewModel()
+    @State private var locationManager = LocationManager()
     @Environment(\.modelContext) private var modelContext
     @Environment(PlayerProfile.self) private var profile
 
@@ -16,13 +18,19 @@ struct CourseSearchView: View {
                 } else {
                     favouritesSection
                     recentSection
+                    nearbySection
                     browseSection
                 }
             }
             .navigationTitle(profile.name.isEmpty ? "HoleInOne" : "Hi, \(profile.name) 👋")
             .searchable(text: $viewModel.query, prompt: "Course name or city")
             .onChange(of: viewModel.query) { _, new in viewModel.onQueryChange(new) }
+            .onChange(of: locationManager.currentLocation) { _, location in
+                guard let location else { return }
+                Task { await viewModel.loadNearbyCourses(from: location) }
+            }
             .task {
+                locationManager.requestPermission()
                 await viewModel.loadFirstPage()
                 viewModel.loadRecentCourses(store: SwingHistoryStore(modelContext: modelContext))
                 viewModel.loadFavourites(store: SwingHistoryStore(modelContext: modelContext))
@@ -112,6 +120,66 @@ struct CourseSearchView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Nearby section
+
+    @ViewBuilder
+    private var nearbySection: some View {
+        Section {
+            if viewModel.isLoadingNearby {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Finding courses near you…")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .listRowBackground(Color.clear)
+            } else {
+                ForEach(viewModel.nearbyCourses, id: \.id) { course in
+                    nearbyCourseRow(course)
+                }
+            }
+        } header: {
+            Label("Nearby", systemImage: "location.fill")
+                .foregroundStyle(.blue)
+        }
+    }
+
+    private func nearbyCourseRow(_ course: CourseAPIResult) -> some View {
+        let courseId = String(course.id)
+        let name     = course.courseName.isEmpty ? course.clubName : course.courseName
+        let dist     = viewModel.distanceLabel(to: course)
+        let subtitle = ([dist, course.location.city, course.location.country] as [String?])
+            .compactMap { $0.flatMap { $0.isEmpty ? nil : $0 } }
+            .joined(separator: " · ")
+        let fav = viewModel.isFavourite(courseId: courseId)
+
+        return NavigationLink {
+            RoundSetupView(
+                courseId: courseId,
+                preloadName: name,
+                preloadCity: course.location.city,
+                preloadCountry: course.location.country
+            )
+        } label: {
+            courseRowContent(
+                courseId: courseId,
+                clubName: course.clubName,
+                city: course.location.city,
+                country: course.location.country,
+                name: name,
+                subtitle: subtitle,
+                teeCount: course.tees.male.count + course.tees.female.count,
+                isFavourite: fav
+            )
+        }
+        .swipeActions(edge: .trailing) {
+            favouriteSwipeButton(
+                courseId: courseId, courseName: name,
+                city: course.location.city, country: course.location.country,
+                isCurrent: fav
+            )
         }
     }
 
