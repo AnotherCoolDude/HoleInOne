@@ -103,18 +103,44 @@ actor GolfAPIService {
     private let apiKey = "2AYZOT5Y7IEFANIYUALGSSYPCU"
     private let baseURL = "https://api.golfcourseapi.com/v1"
 
+    // MARK: - Daily request budget
+
+    /// Hard cap below the API's 300/day free-tier limit.
+    private static let dailyBudget = 250
+
+    private var budgetDate: String = ""
+    private var requestsToday: Int = 0
+
+    /// Returns how many requests remain for today.
+    var remainingBudget: Int {
+        syncBudgetIfNeeded()
+        return max(0, Self.dailyBudget - requestsToday)
+    }
+
+    // MARK: - Page cache
+
+    /// Caches list-endpoint responses so repeated fetches of the same page
+    /// (browse scrolling, repeated searches) cost zero API requests.
+    private var pageCache: [Int: CourseListResult] = [:]
+
     private init() {}
 
     // MARK: - Endpoints
 
     /// Returns one page of courses (20 per page). Pages run from 1 to metadata.lastPage.
+    /// Results are cached in memory for the lifetime of the app session.
     func listCourses(page: Int = 1) async throws -> CourseListResult {
-        let url = try buildURL(path: "/courses", query: ["page": "\(max(1, page))"])
+        let p = max(1, page)
+        if let cached = pageCache[p] { return cached }
+
+        let url = try buildURL(path: "/courses", query: ["page": "\(p)"])
         let response: CoursesListDTO = try await fetch(url: url)
-        return CourseListResult(
+        let result = CourseListResult(
             courses: response.courses.map(\.asDomain),
             metadata: response.metadata.asDomain
         )
+        pageCache[p] = result
+        return result
     }
 
     /// Fetches a single course by its integer ID.
@@ -126,16 +152,17 @@ actor GolfAPIService {
 
     // MARK: - Higher-level helpers
 
-    /// Client-side search: fetches pages until enough matches are found or all pages are exhausted.
+    /// Client-side search: fetches pages until enough matches are found or budget/page cap is reached.
     /// The API provides no server-side filtering, so this is done in-process.
+    /// Cached pages are reused at zero cost.
     /// - Parameters:
     ///   - query:      Text to match against club_name, course_name, city, state, or country (case-insensitive).
-    ///   - maxResults: Stop after collecting this many matches (default 30).
-    ///   - maxPages:   Guard against scanning the entire dataset (default 10 pages = 200 courses).
+    ///   - maxResults: Stop after collecting this many matches (default 20).
+    ///   - maxPages:   Hard cap on pages fetched per search (default 5 = 100 courses scanned).
     func searchCourses(
         query: String,
-        maxResults: Int = 30,
-        maxPages: Int = 10
+        maxResults: Int = 20,
+        maxPages: Int = 5
     ) async throws -> [CourseAPIResult] {
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
 
@@ -144,11 +171,12 @@ actor GolfAPIService {
         var lastPage = Int.max
 
         while results.count < maxResults && page <= min(lastPage, maxPages) {
+            // Cached pages are free; only real fetches decrement the budget
             let list = try await listCourses(page: page)
             lastPage = list.metadata.lastPage
 
+            let tokens = query.lowercased().split(separator: " ").map(String.init)
             let matches = list.courses.filter { course in
-                let tokens = query.lowercased().split(separator: " ").map(String.init)
                 let searchable = [
                     course.clubName,
                     course.courseName,
@@ -261,7 +289,41 @@ actor GolfAPIService {
 
     // MARK: - Private networking
 
+    // MARK: - Budget helpers (private)
+
+    /// Syncs the in-memory counter with UserDefaults, resetting on a new calendar day.
+    private func syncBudgetIfNeeded() {
+        let today = Self.todayString()
+        if budgetDate != today {
+            budgetDate = today
+            requestsToday = UserDefaults.standard.integer(forKey: "api_requests_\(today)")
+        }
+    }
+
+    private func consumeBudget() throws {
+        syncBudgetIfNeeded()
+        guard requestsToday < Self.dailyBudget else {
+            throw GolfCourseAPIError.dailyBudgetExceeded
+        }
+        requestsToday += 1
+        UserDefaults.standard.set(requestsToday, forKey: "api_requests_\(budgetDate)")
+        #if DEBUG
+        print("[GolfAPI] Request \(requestsToday)/\(Self.dailyBudget) today")
+        #endif
+    }
+
+    private static func todayString() -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.timeZone = .current
+        return fmt.string(from: Date())
+    }
+
+    // MARK: - Networking
+
     private func fetch<T: Decodable>(url: URL) async throws -> T {
+        try consumeBudget()
+
         var request = URLRequest(url: url)
         request.setValue("Key \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 15
@@ -316,7 +378,8 @@ enum GolfCourseAPIError: LocalizedError {
     case invalidResponse
     case unauthorized
     case notFound
-    case rateLimitExceeded
+    case rateLimitExceeded      // HTTP 429 from the server
+    case dailyBudgetExceeded    // local 250-request soft cap
     case serverError(statusCode: Int)
     case decodingFailed(Error)
     case bundleFileNotFound
@@ -327,7 +390,8 @@ enum GolfCourseAPIError: LocalizedError {
         case .invalidResponse:          return "Received an unexpected server response."
         case .unauthorized:             return "Invalid API key. Check your GolfCourseAPI credentials."
         case .notFound:                 return "Course not found."
-        case .rateLimitExceeded:        return "Daily API rate limit reached. Try again tomorrow."
+        case .rateLimitExceeded:        return "API rate limit reached (HTTP 429). Try again tomorrow."
+        case .dailyBudgetExceeded:      return "Daily search limit reached. Try again tomorrow."
         case .serverError(let code):    return "Server error (HTTP \(code)). Please try again."
         case .decodingFailed(let e):    return "Failed to parse server response: \(e.localizedDescription)"
         case .bundleFileNotFound:       return "Bundled course data file is missing."

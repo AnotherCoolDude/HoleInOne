@@ -91,7 +91,7 @@ final class CourseSearchViewModel {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            searchResults = try await api.searchCourses(query: query, maxResults: 40, maxPages: 15)
+            searchResults = try await api.searchCourses(query: query, maxResults: 20, maxPages: 5)
             if searchResults.isEmpty {
                 errorMessage = "No courses found for \"\(query)\". Try a city name or partial course name."
             }

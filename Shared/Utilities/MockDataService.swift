@@ -55,7 +55,7 @@ enum MockDataService {
         for query in queries {
             guard courses.count < 3 else { break }
             do {
-                if let result = try await api.searchCourses(query: query, maxResults: 1, maxPages: 5).first {
+                if let result = try await api.searchCourses(query: query, maxResults: 1, maxPages: 2).first {
                     let detail = try await api.fetchCourse(id: result.id)
                     let course = await api.toGolfCourse(detail, teeGender: "male", preferredTeeName: "White")
                     courses.append(course)
