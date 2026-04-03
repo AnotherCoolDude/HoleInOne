@@ -3,11 +3,22 @@ import SwiftUI
 
 @main
 struct HoleInOneApp: App {
+
+    let container: ModelContainer = {
+        let schema = Schema([RoundResult.self, HoleResult.self, SavedCourse.self])
+        return try! ModelContainer(for: schema)
+    }()
+
     var body: some Scene {
         WindowGroup {
             CourseSearchView()
                 .environment(PlayerProfile.shared)
+                .onAppear {
+                    #if DEBUG
+                    MockDataService.seedIfNeeded(modelContext: container.mainContext)
+                    #endif
+                }
         }
-        .modelContainer(for: [RoundResult.self, HoleResult.self, SavedCourse.self])
+        .modelContainer(container)
     }
 }
