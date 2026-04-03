@@ -6,7 +6,10 @@ struct HoleInOneApp: App {
 
     let container: ModelContainer = {
         let schema = Schema([RoundResult.self, HoleResult.self, SavedCourse.self, LearnedHoleGPS.self])
-        return try! ModelContainer(for: schema)
+        // Keep SwiftData store local-only; CloudKit sync is handled directly
+        // by CloudGPSService via the public CloudKit database.
+        let config = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
+        return try! ModelContainer(for: schema, configurations: config)
     }()
 
     var body: some Scene {
