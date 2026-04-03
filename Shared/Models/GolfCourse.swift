@@ -49,5 +49,29 @@ extension OSMHoleData.GPSQuality: Codable {
     }
 }
 
-// Hashable conformance
-extension OSMHoleData.GPSQuality: Hashable {}
+// Hashable conformance — must be implemented manually because GPSQuality is
+// declared in a different file (Swift cannot synthesise hash(into:) retroactively).
+extension OSMHoleData.GPSQuality: Hashable {
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .full(let n):
+            hasher.combine(0)
+            hasher.combine(n)
+        case .partial(let found, let total):
+            hasher.combine(1)
+            hasher.combine(found)
+            hasher.combine(total)
+        case .none:
+            hasher.combine(2)
+        }
+    }
+
+    static func == (lhs: OSMHoleData.GPSQuality, rhs: OSMHoleData.GPSQuality) -> Bool {
+        switch (lhs, rhs) {
+        case (.full(let a),          .full(let b)):          return a == b
+        case (.partial(let a, let b), .partial(let c, let d)): return a == c && b == d
+        case (.none,                 .none):                 return true
+        default:                                             return false
+        }
+    }
+}
