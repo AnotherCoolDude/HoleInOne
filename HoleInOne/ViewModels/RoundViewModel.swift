@@ -26,6 +26,16 @@ final class RoundViewModel {
     var learnedGPSStore: LearnedGPSStore?
     private var activeRoundResult: RoundResult?
 
+    // MARK: - Tee colour for community GPS uploads
+
+    /// The tee colour the player is using for this round.
+    /// Set from PlayerProfile on start; can be overridden by the in-round picker.
+    var activeTeeColor: TeeColor = .blue
+
+    /// True once the tee colour has been confirmed (from profile or picker).
+    /// When false, RoundView shows the colour picker on the first "Mark Tee" tap.
+    var teeColorConfirmed: Bool = false
+
     init(round: Round) {
         self.round = round
         loadUnitPreference()
@@ -37,6 +47,12 @@ final class RoundViewModel {
         historyStore    = store
         learnedGPSStore = gpsStore
         activeRoundResult = store.startRound(course: round.course, selection: round.selection)
+
+        // Resolve tee colour from player profile (skip picker if preference is set)
+        if let color = PlayerProfile.shared.preferredTeeColor {
+            activeTeeColor    = color
+            teeColorConfirmed = true
+        }
 
         // Load all previously recorded GPS overrides for this course
         loadLearnedGPS()
@@ -116,24 +132,57 @@ final class RoundViewModel {
         learnedGPSStore?.mappedPinCount(courseId: round.course.id) ?? 0
     }
 
-    /// Records the player's current location as the pin for the current hole.
+    /// Records the player's current location as the pin for the current hole
+    /// and uploads it to the community database anonymously.
     func markPin() {
         guard let loc = userLocation, let store = learnedGPSStore else { return }
         let holeNumber = round.currentHole.number
         let coord = Coordinate(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
         learnedPins[holeNumber] = coord
         store.recordPin(courseId: round.course.id, holeNumber: holeNumber, coordinate: loc.coordinate)
-        // Recalculate distance with new pin
+
+        // Upload to community database (fire-and-forget)
+        let courseId = round.course.id
+        let accuracy = loc.horizontalAccuracy
+        Task {
+            await CloudGPSService.shared.uploadPin(
+                courseId: courseId, holeNumber: holeNumber,
+                coordinate: coord, accuracy: accuracy
+            )
+        }
+
         handleLocationUpdate(loc)
     }
 
-    /// Records the player's current location as the tee for the current hole.
+    /// Records the player's current location as the tee for the current hole,
+    /// tagged with the active tee colour, and uploads it to the community database.
     func markTee() {
         guard let loc = userLocation, let store = learnedGPSStore else { return }
         let holeNumber = round.currentHole.number
         let coord = Coordinate(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
         learnedTees[holeNumber] = coord
         store.recordTee(courseId: round.course.id, holeNumber: holeNumber, coordinate: loc.coordinate)
+
+        // Upload to community database tagged with tee colour (fire-and-forget)
+        let courseId = round.course.id
+        let color    = activeTeeColor
+        let accuracy = loc.horizontalAccuracy
+        Task {
+            await CloudGPSService.shared.uploadTee(
+                courseId: courseId, holeNumber: holeNumber,
+                teeColor: color, coordinate: coord, accuracy: accuracy
+            )
+        }
+    }
+
+    /// Confirms the tee colour for this round (called from the in-round picker).
+    /// Optionally saves the choice to the player profile as their new default.
+    func confirmTeeColor(_ color: TeeColor, saveToProfile: Bool) {
+        activeTeeColor    = color
+        teeColorConfirmed = true
+        if saveToProfile {
+            PlayerProfile.shared.preferredTeeName = color.displayName
+        }
     }
 
     // MARK: - Hole navigation

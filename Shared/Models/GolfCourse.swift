@@ -24,6 +24,23 @@ struct GolfCourse: Identifiable, Codable, Hashable {
     var overviewImageURL: URL? {
         overviewImageURLString.flatMap { URL(string: $0) }
     }
+
+    // MARK: - Community GPS metadata (populated by CloudGPSService)
+
+    /// Number of holes with usable community pin data (medium+ confidence).
+    var communityPinCount: Int = 0
+
+    /// The tee colour whose community data was injected into this course's
+    /// hole coordinates. Empty string when no community tee data was used.
+    var communityTeeColorRaw: String = ""
+
+    /// Maximum contributor sample count across all community-enriched holes.
+    var communityMaxSamples: Int = 0
+
+    /// True when at least one hole has usable community GPS.
+    var hasCommunityGPS: Bool { communityPinCount > 0 || !communityTeeColorRaw.isEmpty }
+
+    var communityTeeColor: TeeColor? { TeeColor(rawValue: communityTeeColorRaw) }
 }
 
 // MARK: - Codable conformance for GPSQuality
@@ -61,10 +78,6 @@ extension OSMHoleData.GPSQuality: Codable {
         }
     }
 }
-
-// MARK: - DataSource Codable + Hashable (declared in a different file)
-
-extension OSMHoleData.DataSource: Codable, Hashable {}
 
 // Hashable conformance — must be implemented manually because GPSQuality is
 // declared in a different file (Swift cannot synthesise hash(into:) retroactively).

@@ -52,6 +52,12 @@ struct RoundSetupView: View {
                 statusBanner
                     .padding(.horizontal)
 
+                // Community crowdsourced GPS badge (shown once course loaded with data)
+                if !isLoadingCourse, let c = course, c.hasCommunityGPS {
+                    communityGPSBadge(for: c)
+                        .padding(.horizontal)
+                }
+
                 // Player-recorded GPS progress (always shown once course loaded)
                 if !isLoadingCourse {
                     playerGPSBadge
@@ -298,6 +304,40 @@ struct RoundSetupView: View {
                     .font(.caption.bold()).foregroundStyle(.indigo)
             } detail: {
                 Text("Full pin distances available from your own recorded data.")
+            }
+        }
+    }
+
+    // MARK: - Community GPS badge
+
+    @ViewBuilder
+    private func communityGPSBadge(for course: GolfCourse) -> some View {
+        let pinCount  = course.communityPinCount
+        let teeColor  = course.communityTeeColor
+        let maxSamples = course.communityMaxSamples
+
+        bannerRow(color: .indigo) {
+            Image(systemName: "person.3.fill").foregroundStyle(.indigo)
+        } title: {
+            HStack(spacing: 6) {
+                Text("Community GPS")
+                    .font(.caption.bold())
+                    .foregroundStyle(.indigo)
+                if let color = teeColor {
+                    color.swatchView
+                    Text(color.displayName)
+                        .font(.caption.bold())
+                        .foregroundStyle(.indigo)
+                    Text("tee")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } detail: {
+            if pinCount > 0 {
+                Text("\(pinCount) pin\(pinCount == 1 ? "" : "s") mapped · up to \(maxSamples) contributor\(maxSamples == 1 ? "" : "s") per hole")
+            } else if teeColor != nil {
+                Text("Tee positions from community contributors")
             }
         }
     }

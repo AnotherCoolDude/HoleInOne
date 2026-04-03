@@ -59,6 +59,13 @@ final class PlayerProfile {
         name.isEmpty ? "Player" : name
     }
 
+    /// The player's preferred tee colour as a canonical `TeeColor`.
+    /// Derived from `preferredTeeName`; returns nil when the name is not set or
+    /// unrecognised (e.g. empty string).
+    var preferredTeeColor: TeeColor? {
+        TeeColor.from(preferredTeeName)
+    }
+
     var handicapDisplay: String {
         if handicapIndex <= 0 {
             let plus = abs(handicapIndex)

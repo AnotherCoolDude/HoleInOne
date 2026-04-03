@@ -34,9 +34,12 @@ targets:
         UILaunchScreen: {}
         # Populate GOLF_API_KEY via Secrets.xcconfig (gitignored)
         GOLF_API_KEY: "$(GOLF_API_KEY)"
+    entitlements:
+      path: HoleInOne/HoleInOne.entitlements
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.holeinone.app
       INFOPLIST_FILE: HoleInOne/Info.plist
+      CODE_SIGN_ENTITLEMENTS: HoleInOne/HoleInOne.entitlements
     dependencies:
       - target: "HoleInOne Watch App"
         embed: true

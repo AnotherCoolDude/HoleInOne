@@ -1,3 +1,4 @@
+#if os(iOS)
 import CoreLocation
 import Foundation
 import MapKit
@@ -64,25 +65,25 @@ actor SatelliteGreenDetector {
         if let cached = loadCache(courseId: courseId) { return cached }
 
         // Capture snapshot on the main thread (MapKit requirement)
-        guard let (snapshot, metresPerPixel) = await captureSnapshot(center: location) else {
+        guard let (snapshotImage, region, metresPerPixel) = await captureSnapshot(center: location) else {
             return nil
         }
 
         // Build binary mask, detect contours, filter candidates
-        guard let mask = buildGreenMask(from: snapshot.image),
+        guard let mask = buildGreenMask(from: snapshotImage),
               let contours = try? detectContours(in: mask) else {
             return nil
         }
 
         let imageSize = CGSize(
-            width: snapshot.image.size.width * snapshotScale,
-            height: snapshot.image.size.height * snapshotScale
+            width: snapshotImage.size.width * snapshotScale,
+            height: snapshotImage.size.height * snapshotScale
         )
 
         let candidates = contours
             .compactMap { contour -> (coord: Coordinate, confidence: Double)? in
                 score(contour: contour, imageSize: imageSize, metresPerPixel: metresPerPixel,
-                      snapshot: snapshot)
+                      region: region)
             }
             .sorted { $0.confidence > $1.confidence }
             .prefix(expectedHoles)
@@ -114,7 +115,7 @@ actor SatelliteGreenDetector {
     // MARK: - Snapshot capture
 
     @MainActor
-    private func captureSnapshot(center: Coordinate) async -> (MKMapSnapshot, Double)? {
+    private func captureSnapshot(center: Coordinate) async -> (UIImage, MKCoordinateRegion, Double)? {
         let region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: center.latitude, longitude: center.longitude),
             span: MKCoordinateSpan(latitudeDelta: snapshotLatSpan, longitudeDelta: snapshotLonSpan)
@@ -132,8 +133,8 @@ actor SatelliteGreenDetector {
             let effectiveWidth = snapshotSize.width * snapshotScale
             let courseLat = center.latitude * .pi / 180
             let metresPerDegLon = 111_320 * cos(courseLat)
-            let metresPerPixel = (snapshotLonSpan * metresPerDegLon) / effectiveWidth
-            return (snapshot, metresPerPixel)
+            let metresPerPixel = Double((snapshotLonSpan * metresPerDegLon) / effectiveWidth)
+            return (snapshot.image, region, metresPerPixel)
         } catch {
             print("[SatelliteDetector] Snapshot failed: \(error.localizedDescription)")
             return nil
@@ -155,7 +156,7 @@ actor SatelliteGreenDetector {
             data: &rgba,
             width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: width * 4,
-            colorSpace: CGColorSpaceCreateDeviceRGB(),
+            space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
         ) else { return nil }
         readCtx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
@@ -178,7 +179,7 @@ actor SatelliteGreenDetector {
             data: &grey,
             width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: width,
-            colorSpace: CGColorSpaceCreateDeviceGray(),
+            space: CGColorSpaceCreateDeviceGray(),
             bitmapInfo: CGImageAlphaInfo.none.rawValue
         ) else { return nil }
 
@@ -216,14 +217,13 @@ actor SatelliteGreenDetector {
     private func detectContours(in mask: CGImage) throws -> [VNContour] {
         let request = VNDetectContoursRequest()
         request.contrastAdjustment = 1.5
-        request.detectsDarkOnBright = false   // white blobs on black background
 
         let handler = VNImageRequestHandler(cgImage: mask, options: [:])
         try handler.perform([request])
 
         guard let obs = request.results?.first else { return [] }
         // Return only top-level contours (not holes within blobs)
-        return (0..<obs.topLevelContourCount).compactMap { try? obs.topLevelContour(at: $0) }
+        return obs.topLevelContours
     }
 
     // MARK: - Scoring
@@ -233,10 +233,10 @@ actor SatelliteGreenDetector {
         contour: VNContour,
         imageSize: CGSize,
         metresPerPixel: Double,
-        snapshot: MKMapSnapshot
+        region: MKCoordinateRegion
     ) -> (coord: Coordinate, confidence: Double)? {
         // Vision normalises coordinates to 0–1; scale to pixel space
-        let bb = contour.normalizedBoundingBox
+        let bb = contour.normalizedPath.boundingBox
         let pixelBB = CGRect(
             x: bb.minX * imageSize.width,
             y: (1 - bb.maxY) * imageSize.height,   // Vision uses bottom-left origin
@@ -260,10 +260,17 @@ actor SatelliteGreenDetector {
         let areaNorm = 1.0 - min(abs(areaM2 - idealAreaM2) / idealAreaM2, 1.0)
         let confidence = (circularity * 0.6 + areaNorm * 0.4)
 
-        // Convert pixel centroid → GPS
+        // Convert pixel centroid → GPS using the captured region
         let centrePixel = CGPoint(x: pixelBB.midX / snapshotScale, y: pixelBB.midY / snapshotScale)
-        let coord2D = snapshot.coordinate(at: centrePixel)
-        let coord = Coordinate(latitude: coord2D.latitude, longitude: coord2D.longitude)
+        let latDelta = region.span.latitudeDelta
+        let lonDelta = region.span.longitudeDelta
+        let imgW = imageSize.width / snapshotScale
+        let imgH = imageSize.height / snapshotScale
+        let fracX = Double(centrePixel.x / imgW)   // 0 = left, 1 = right
+        let fracY = Double(centrePixel.y / imgH)   // 0 = top, 1 = bottom (screen coords)
+        let lat = region.center.latitude  + latDelta * (0.5 - fracY)
+        let lon = region.center.longitude + lonDelta * (fracX - 0.5)
+        let coord = Coordinate(latitude: lat, longitude: lon)
 
         return (coord, confidence)
     }
@@ -343,3 +350,5 @@ private extension CGPath {
         return totalLength
     }
 }
+
+#endif  // os(iOS)

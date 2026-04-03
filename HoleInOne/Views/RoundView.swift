@@ -9,6 +9,8 @@ struct RoundView: View {
     // Re-record confirmation
     @State private var showRerecordPin = false
     @State private var showRerecordTee = false
+    // Tee colour picker (shown once per round if profile has no preference)
+    @State private var showTeeColorPicker = false
     // Brief "saved" feedback
     @State private var pinSaved = false
     @State private var teeSaved = false
@@ -127,7 +129,7 @@ struct RoundView: View {
             Spacer(minLength: 0)
             Button {
                 withAnimation(.easeOut(duration: 0.2)) {
-                    hintDismissedForHole.insert(holeNumber)
+                    _ = hintDismissedForHole.insert(holeNumber)
                 }
             } label: {
                 Image(systemName: "xmark")
@@ -136,7 +138,7 @@ struct RoundView: View {
             }
         }
         .padding(10)
-        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .background { RoundedRectangle(cornerRadius: 10).fill(color.opacity(0.08)) }
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 
@@ -194,7 +196,7 @@ struct RoundView: View {
                     .font(.caption2)
             }
             .font(.caption)
-            .foregroundStyle(noGPS ? .secondary : (hasPin ? .green : .blue))
+            .foregroundStyle(noGPS ? Color.secondary : (hasPin ? Color.green : Color.blue))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(
@@ -278,37 +280,27 @@ struct RoundView: View {
     ///   After 4 swings:  "3 left to net par"  (green)
     ///   After 7 swings:  "Net par  ✓"         (blue)
     ///   After 9 swings:  "+2 over net par"     (red)
-    @ViewBuilder
-    private var strokeBudgetView: some View {
-        let netPar   = viewModel.currentHoleNetPar
-        let extra    = viewModel.extraStrokesOnCurrentHole
-        let remaining = viewModel.strokesUntilNetPar
-
-        // Only show the extra-strokes indicator when the player actually receives strokes
-        let label: String
-        let color: Color
-        let icon: String
-
+    private func strokeBudgetStyle(remaining: Int, netPar: Int) -> (label: String, color: Color, icon: String) {
         if remaining > 0 {
-            label = "\(remaining) left · Net par \(netPar)"
-            color = remaining <= 1 ? .orange : .green
-            icon  = "flag"
+            return ("\(remaining) left · Net par \(netPar)", remaining <= 1 ? .orange : .green, "flag")
         } else if remaining == 0 {
-            label = "Net par \(netPar)  ✓"
-            color = .blue
-            icon  = "checkmark"
+            return ("Net par \(netPar)  ✓", .blue, "checkmark")
         } else {
-            label = "+\(abs(remaining)) over net par"
-            color = .red
-            icon  = "exclamationmark"
+            return ("+\(abs(remaining)) over net par", .red, "exclamationmark")
         }
+    }
 
-        HStack(spacing: 5) {
+    private var strokeBudgetView: some View {
+        let netPar    = viewModel.currentHoleNetPar
+        let extra     = viewModel.extraStrokesOnCurrentHole
+        let remaining = viewModel.strokesUntilNetPar
+        let (label, color, icon) = strokeBudgetStyle(remaining: remaining, netPar: netPar)
+
+        return HStack(spacing: 5) {
             if extra > 0 {
-                // Show the extra strokes badge so the player knows they have allowance
                 Text("+\(extra)")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.white)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(color.opacity(0.85), in: Capsule())
@@ -332,30 +324,44 @@ struct RoundView: View {
         let holeNumber = viewModel.round.currentHole.number
         let hasTee = viewModel.hasLearnedTee(holeNumber: holeNumber)
         let noGPS = viewModel.userLocation == nil
+        let accentColor: Color = noGPS ? .secondary : (hasTee ? .green : .blue)
 
         return Button {
             if hasTee {
                 showRerecordTee = true
+            } else if !viewModel.teeColorConfirmed {
+                showTeeColorPicker = true
             } else {
                 saveTee()
             }
         } label: {
             HStack(spacing: 4) {
+                // Show tee-colour swatch once a colour has been chosen
+                if viewModel.teeColorConfirmed && !noGPS {
+                    viewModel.activeTeeColor.swatchView
+                }
                 Image(systemName: teeSaved ? "checkmark.circle.fill" : (hasTee ? "location.fill" : "location"))
                 Text(teeSaved ? "Saved!" : (hasTee ? "Re-record Tee" : "Mark Tee"))
                     .font(.caption2)
             }
             .font(.caption)
-            .foregroundStyle(noGPS ? .secondary : (hasTee ? .green : .blue))
+            .foregroundStyle(accentColor)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(
-                (noGPS ? Color.secondary : (hasTee ? Color.green : Color.blue)).opacity(0.12),
-                in: Capsule()
-            )
+            .background(accentColor.opacity(0.12), in: Capsule())
         }
         .disabled(noGPS)
         .animation(.easeInOut(duration: 0.2), value: teeSaved)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.teeColorConfirmed)
+        // Tee-colour picker sheet
+        .sheet(isPresented: $showTeeColorPicker) {
+            TeeColorPickerSheet { color, saveToProfile in
+                viewModel.confirmTeeColor(color, saveToProfile: saveToProfile)
+                saveTee()
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Save helpers
@@ -380,5 +386,91 @@ struct RoundView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             if pin { pinSaved = false } else { teeSaved = false }
         }
+    }
+}
+
+// MARK: - Tee colour picker sheet
+
+/// Presented the first time a player taps "Mark Tee" without a stored tee-colour
+/// preference. The player picks the colour they are teeing from, optionally saves
+/// it as their default, and the sheet dismisses — the tee location is then recorded.
+private struct TeeColorPickerSheet: View {
+    /// Called with the chosen colour and whether the player wants to save it.
+    let onConfirm: (TeeColor, Bool) -> Void
+
+    @State private var selected: TeeColor = .blue
+    @State private var saveAsDefault: Bool = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(TeeColor.allCases.filter { $0 != .other }) { color in
+                        colorRow(color)
+                    }
+                    colorRow(.other)
+                } header: {
+                    Text("Which tee are you playing from?")
+                        .textCase(nil)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .padding(.bottom, 4)
+                }
+
+                Section {
+                    Toggle("Remember as my default tee", isOn: $saveAsDefault)
+                } footer: {
+                    Text("You can change this any time in Settings.")
+                        .font(.caption)
+                }
+            }
+            .navigationTitle("Tee Colour")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Mark Tee") {
+                        onConfirm(selected, saveAsDefault)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func colorRow(_ color: TeeColor) -> some View {
+        Button {
+            selected = color
+        } label: {
+            HStack(spacing: 12) {
+                // Larger swatch so it's easy to distinguish colours
+                Circle()
+                    .fill(color.markerColor)
+                    .frame(width: 22, height: 22)
+                    .overlay { Circle().stroke(Color(.systemGray4), lineWidth: 0.5) }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(color.displayName)
+                        .foregroundStyle(.primary)
+                    Text(color.typicalUse)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if selected == color {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.blue)
+                        .fontWeight(.semibold)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -228,7 +228,14 @@ actor GolfAPIService {
 
         let expectedHoles = tee?.numberOfHoles ?? 18
 
-        // Layer 0: club website scraping (imagery + scorecard data for German clubs)
+        // Preferred tee colour — used to choose the right community tee bucket
+        let preferredColor = TeeColor.from(preferredTeeName)
+
+        // Layer 0a: Community GPS (CloudKit — highest trust, multi-player validated)
+        // Runs concurrently with all other enrichment layers.
+        async let communityTask = CloudGPSService.shared.fetchCommunityGPS(courseId: courseId)
+
+        // Layer 0b: club website scraping (imagery + scorecard data for German clubs)
         // Runs concurrently with GPS enrichment — does not block the main pipeline.
         async let webDataTask = ClubWebsiteScraper.shared.scrape(
             courseId: courseId,
@@ -244,20 +251,31 @@ actor GolfAPIService {
             expectedHoles: expectedHoles
         )
 
-        // Layer 2: satellite green detection — only when OSM has no data
+        // Layer 2: satellite green detection — only when OSM has no data (iOS only)
         let osmUsable = osmData?.quality.isUsable ?? false
-        let satData: OSMHoleData? = osmUsable ? nil :
+        let satData: OSMHoleData?
+        #if os(iOS)
+        satData = osmUsable ? nil :
             await SatelliteGreenDetector.shared.detectGreens(
                 courseId: courseId,
                 location: courseCoord,
                 expectedHoles: expectedHoles
             )
+        #else
+        satData = nil
+        #endif
 
         // Final GPS source: OSM > satellite > course-centre placeholder
         let gpsData = osmUsable ? osmData : (satData?.quality.isUsable == true ? satData : osmData)
 
-        // Await web scrape result (started concurrently above)
-        let webData = await webDataTask
+        // Await concurrent results
+        let communityData = await communityTask
+        let webData       = await webDataTask
+
+        // Build a fast per-hole lookup for community GPS
+        let communityByHole = Dictionary(uniqueKeysWithValues:
+            communityData.map { ($0.holeNumber, $0) }
+        )
 
         // Satellite detection returns unordered candidates — assign by sorted order
         // (closest candidate to each hole's index position along the course)
@@ -277,15 +295,37 @@ actor GolfAPIService {
             return Dictionary(uniqueKeysWithValues: scraped.map { ($0.number, $0) })
         }()
 
+        // Helper: pick the best community tee coordinate for a hole.
+        // Tries the player's preferred colour first; falls back to the highest-
+        // confidence tee available across all colours.
+        func communityTeeCoord(for holeNumber: Int) -> Coordinate? {
+            guard let ch = communityByHole[holeNumber] else { return nil }
+            // Preferred colour exact match
+            if let color = preferredColor,
+               let td = ch.teeData(for: color), td.confidence.isUsable {
+                return td.coordinate
+            }
+            // Best available usable tee (any colour)
+            return ch.bestUsableTee?.data.coordinate
+        }
+
         let holes: [GolfHole]
         if let tee {
             holes = tee.holes.enumerated().map { index, h in
                 let holeNumber = index + 1
-                let pinCoord = gpsData?.pinCoordinate(forHole: holeNumber)
+                let ch = communityByHole[holeNumber]
+
+                // Pin: community > OSM/satellite > placeholder
+                let pinCoord = (ch?.hasPinData == true ? ch?.pinCoordinate : nil)
+                    ?? gpsData?.pinCoordinate(forHole: holeNumber)
                     ?? satPin(forHoleIndex: index)
                     ?? courseCoord
-                let teeCoord = gpsData?.teeCoordinate(forHole: holeNumber) ?? courseCoord
-                // Scraped website data fills in when API tee data has 0-valued fields
+
+                // Tee: community (preferred colour, else best) > OSM > placeholder
+                let teeCoord = communityTeeCoord(for: holeNumber)
+                    ?? gpsData?.teeCoordinate(forHole: holeNumber)
+                    ?? courseCoord
+
                 let webHole = webHoleLookup[holeNumber]
                 return GolfHole(
                     number: holeNumber,
@@ -297,22 +337,35 @@ actor GolfAPIService {
                 )
             }
         } else {
-            // Course has no tee data — use scraped website data if available,
-            // otherwise fall back to a generic 18-hole scaffold.
             holes = (1...18).map { num in
+                let ch = communityByHole[num]
                 let webHole = webHoleLookup[num]
                 return GolfHole(
                     number: num,
                     par: webHole?.par ?? 4,
                     handicap: webHole?.handicap ?? num,
-                    teeCoordinate: gpsData?.teeCoordinate(forHole: num) ?? courseCoord,
-                    pinCoordinate: gpsData?.pinCoordinate(forHole: num)
+                    teeCoordinate: communityTeeCoord(for: num)
+                        ?? gpsData?.teeCoordinate(forHole: num)
+                        ?? courseCoord,
+                    pinCoordinate: (ch?.hasPinData == true ? ch?.pinCoordinate : nil)
+                        ?? gpsData?.pinCoordinate(forHole: num)
                         ?? satPin(forHoleIndex: num - 1)
                         ?? courseCoord,
                     lengthMeters: webHole?.lengthMeters ?? 0
                 )
             }
         }
+
+        // Community metadata for badges in RoundSetupView
+        let communityPinCount  = communityData.filter { $0.hasPinData }.count
+        let communityTeeColor  = preferredColor.flatMap { c in
+            communityData.contains { $0.teeData(for: c)?.confidence.isUsable == true } ? c : nil
+        } ?? communityData.compactMap { $0.bestUsableTee?.color }.first
+        let communityMaxSamples = communityData.flatMap { hole -> [Int] in
+            var counts = [hole.pinSampleCount]
+            counts += hole.tees.values.map { $0.sampleCount }
+            return counts
+        }.max() ?? 0
 
         let finalQuality = gpsData?.quality ?? .none
         return GolfCourse(
@@ -324,9 +377,12 @@ actor GolfAPIService {
             holes: holes,
             osmQuality: finalQuality,
             gpsSource: gpsData?.dataSource ?? .osm,
-            overviewImageURLString: webData.overviewImageURL?.absoluteString,
             courseRating: tee?.courseRating ?? 72.0,
-            slopeRating: tee?.slopeRating ?? 113
+            slopeRating: tee?.slopeRating ?? 113,
+            overviewImageURLString: webData.overviewImageURL?.absoluteString,
+            communityPinCount: communityPinCount,
+            communityTeeColorRaw: communityTeeColor?.rawValue ?? "",
+            communityMaxSamples: communityMaxSamples
         )
     }
 
