@@ -228,7 +228,7 @@ actor GolfAPIService {
 
         let expectedHoles = tee?.numberOfHoles ?? 18
 
-        // Fetch OSM hole coordinates (cached after first successful lookup)
+        // Layer 1: OSM hole coordinates (free, cached 30 days)
         let osmData = try? await OSMGolfService.shared.fetchHoleCoordinates(
             courseId: courseId,
             courseName: result.clubName,
@@ -236,12 +236,38 @@ actor GolfAPIService {
             expectedHoles: expectedHoles
         )
 
+        // Layer 2: satellite green detection — only when OSM has no data
+        let osmUsable = osmData?.quality.isUsable ?? false
+        let satData: OSMHoleData? = osmUsable ? nil :
+            await SatelliteGreenDetector.shared.detectGreens(
+                courseId: courseId,
+                location: courseCoord,
+                expectedHoles: expectedHoles
+            )
+
+        // Final GPS source: OSM > satellite > course-centre placeholder
+        let gpsData = osmUsable ? osmData : (satData?.quality.isUsable == true ? satData : osmData)
+
+        // Satellite detection returns unordered candidates — assign by sorted order
+        // (closest candidate to each hole's index position along the course)
+        let satPins: [Coordinate] = satData?.holes
+            .compactMap { $0.pinCoordinate } ?? []
+
+        func satPin(forHoleIndex index: Int) -> Coordinate? {
+            guard !satPins.isEmpty else { return nil }
+            // Round-robin assignment: sorted by longitude gives a rough left-to-right order
+            let sorted = satPins.sorted { $0.longitude < $1.longitude }
+            return index < sorted.count ? sorted[index] : nil
+        }
+
         let holes: [GolfHole]
         if let tee {
             holes = tee.holes.enumerated().map { index, h in
                 let holeNumber = index + 1
-                let pinCoord = osmData?.pinCoordinate(forHole: holeNumber) ?? courseCoord
-                let teeCoord = osmData?.teeCoordinate(forHole: holeNumber) ?? courseCoord
+                let pinCoord = gpsData?.pinCoordinate(forHole: holeNumber)
+                    ?? satPin(forHoleIndex: index)
+                    ?? courseCoord
+                let teeCoord = gpsData?.teeCoordinate(forHole: holeNumber) ?? courseCoord
                 return GolfHole(
                     number: holeNumber,
                     par: h.par,
@@ -258,13 +284,16 @@ actor GolfAPIService {
                     number: num,
                     par: 4,
                     handicap: num,
-                    teeCoordinate: osmData?.teeCoordinate(forHole: num) ?? courseCoord,
-                    pinCoordinate: osmData?.pinCoordinate(forHole: num) ?? courseCoord,
+                    teeCoordinate: gpsData?.teeCoordinate(forHole: num) ?? courseCoord,
+                    pinCoordinate: gpsData?.pinCoordinate(forHole: num)
+                        ?? satPin(forHoleIndex: num - 1)
+                        ?? courseCoord,
                     lengthMeters: 0
                 )
             }
         }
 
+        let finalQuality = gpsData?.quality ?? .none
         return GolfCourse(
             id: courseId,
             name: result.courseName.isEmpty ? result.clubName : result.courseName,
@@ -272,7 +301,8 @@ actor GolfAPIService {
             state: result.location.state,
             country: result.location.country,
             holes: holes,
-            osmQuality: osmData?.quality ?? .none
+            osmQuality: finalQuality,
+            gpsSource: gpsData?.dataSource ?? .osm
         )
     }
 

@@ -109,7 +109,7 @@ struct RoundSetupView: View {
                     .font(.caption.bold())
                     .foregroundStyle(.blue)
             } detail: {
-                Text("Finding hole locations via OpenStreetMap")
+                Text("Searching OpenStreetMap, then satellite imagery if needed")
             }
         } else if let error = loadError {
             bannerRow(color: .red) {
@@ -122,7 +122,7 @@ struct RoundSetupView: View {
                 Text(error)
             }
         } else {
-            gpsQualityBadge(for: course?.osmQuality ?? .none)
+            gpsQualityBadge(for: course?.osmQuality ?? .none, source: course?.gpsSource ?? .osm)
         }
     }
 
@@ -226,22 +226,34 @@ struct RoundSetupView: View {
     // MARK: - GPS quality badge
 
     @ViewBuilder
-    private func gpsQualityBadge(for quality: OSMHoleData.GPSQuality) -> some View {
+    private func gpsQualityBadge(
+        for quality: OSMHoleData.GPSQuality,
+        source: OSMHoleData.DataSource = .osm
+    ) -> some View {
+        let sourceName: String = {
+            switch source {
+            case .osm:       return "OpenStreetMap"
+            case .satellite: return "satellite imagery"
+            case .bundled:   return "bundled data"
+            }
+        }()
+        let sourceIcon: String = source == .satellite ? "camera.aperture" : "map"
+
         switch quality {
         case .full(let n):
             bannerRow(color: .green) {
                 Image(systemName: "location.fill").foregroundStyle(.green)
             } title: {
-                Text("GPS: \(n)/\(n) holes via OpenStreetMap")
+                Text("GPS: \(n)/\(n) holes via \(sourceName)")
                     .font(.caption.bold()).foregroundStyle(.green)
             } detail: {
                 Text("Pin distances fully available.")
             }
         case .partial(let found, let total):
             bannerRow(color: .orange) {
-                Image(systemName: "location").foregroundStyle(.orange)
+                Image(systemName: sourceIcon).foregroundStyle(.orange)
             } title: {
-                Text("GPS: \(found)/\(total) holes via OpenStreetMap")
+                Text("GPS: \(found)/\(total) holes via \(sourceName)")
                     .font(.caption.bold()).foregroundStyle(.orange)
             } detail: {
                 Text("Pin distances available for \(found) holes. Remaining holes use course centre.")
@@ -253,7 +265,7 @@ struct RoundSetupView: View {
                 Text("GPS unavailable")
                     .font(.caption.bold()).foregroundStyle(.red)
             } detail: {
-                Text("No hole coordinates found in OpenStreetMap. Par, yardage, and swing tracking still work.")
+                Text("No hole coordinates found. Walk the course and tap \"Mark Pin\" to build your own GPS data.")
             }
         }
     }

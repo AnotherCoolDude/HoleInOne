@@ -8,9 +8,10 @@ struct GolfCourse: Identifiable, Codable, Hashable {
     let state: String
     let country: String
     let holes: [GolfHole]
-    /// GPS coverage quality from OpenStreetMap enrichment.
-    /// `.none` means all holes use the course centre as a placeholder.
+    /// GPS coverage quality from automatic enrichment.
     var osmQuality: OSMHoleData.GPSQuality = .none
+    /// Which detection method provided the GPS data.
+    var gpsSource: OSMHoleData.DataSource = .osm
 }
 
 // MARK: - Codable conformance for GPSQuality
@@ -48,6 +49,10 @@ extension OSMHoleData.GPSQuality: Codable {
         }
     }
 }
+
+// MARK: - DataSource Codable + Hashable (declared in a different file)
+
+extension OSMHoleData.DataSource: Codable, Hashable {}
 
 // Hashable conformance — must be implemented manually because GPSQuality is
 // declared in a different file (Swift cannot synthesise hash(into:) retroactively).

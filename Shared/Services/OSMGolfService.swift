@@ -26,9 +26,16 @@ struct OSMHoleData {
         let teeCoordinate: Coordinate?   // centroid of all tee boxes for this hole
     }
 
+    enum DataSource {
+        case osm         // OpenStreetMap Overpass API
+        case satellite   // Satellite image colour + contour detection
+        case bundled     // Hardcoded in sample_courses.json
+    }
+
     let holes: [HoleCoords]
     let sourceCourse: String?    // OSM course name that was matched
     let quality: GPSQuality
+    var dataSource: DataSource = .osm
 
     enum GPSQuality: Equatable {
         case full(holes: Int)
